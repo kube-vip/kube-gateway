@@ -1,11 +1,15 @@
 # kube-gateway
 A transparent gateway for Kubernetes pods
 
-**Warning** this is more of a proof of concept at this stage, and uses sidecars 😱. Additionally it uses ephemeral containers to attach the proxy to your workloads and due to a bug in previous releases of Kubernetes only works from version v1.33 onwards. 
+**Note** this is more of a proof of concept at this stage, so feel free to take for a test drive and give feedback. Additionally it uses ephemeral containers to attach the proxy to your workloads and due to a bug in previous releases of Kubernetes only works from version v1.33 onwards. 
 
-## Architecture
+## Architecture
 
 A workload watcher/informer watches for all pods (especially their `update`) call, as when a pod is `created` it won't have an IP address. The `update` occurs once an IP address has been applied, we can the use this IP address to mint a certificate for the pod and create a secret for the pod. Finally an ephemeral container is created and added to the pod, making use of that secret to allow for encrypted communication.
+
+### Why ephemeral containers?
+
+Well, they're pretty cool and they are a good way to attach things to an already running pod! With kube-gateway we create a ephemeral container that also loads a secret (which was broken prior to v1.33) that has the created certificates, eBPF redirects traffic to the gateway and that then encrypts it and sends it on it's merry way.
 
 ### Code
 - `demo` contains a simple demonstration of two pods speaking to one another over TCP (no encryption)
@@ -39,7 +43,7 @@ Start the demo workload (unencrypted)!
 
 `kubectl apply -f ./demo/deployment.yaml`
 
-You can use wireguard to watch the traffic unencrypted flying back and forth.
+You can use tcpdump/wireshark to watch the traffic unencrypted flying back and forth.
 
 ## Enable encryption 🔐
 
