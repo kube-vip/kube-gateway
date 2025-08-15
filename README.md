@@ -24,7 +24,13 @@ Well, they're pretty cool and they are a good way to attach things to an already
 
 ## Create the CA (Certificate Authority)
 
-To create the `secret` that has the CA certs:
+The following commands will generate the certificate authority
+
+`openssl genrsa -out ca.key 4096`
+`openssl req -new -x509 -days 3650 -key ca.key -out ca.crt`
+`kubectl create secret generic watcher --from-file=ca-key=ca.key --from-file=ca-cert=ca.crt`
+
+or you can use the `watcher` to create the `secret` that has the CA certs:
 ```
 cd watcher
 go run main.go -ca
