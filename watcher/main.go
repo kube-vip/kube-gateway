@@ -59,6 +59,8 @@ func main() {
 	loadCA := flag.Bool("loadca", false, "Create a secret in Kubernetes with the certificate")
 	watch := flag.Bool("watch", false, "Watch Kubernetes for pods being created and create certs")
 	image := flag.String("image", "thebsdbox/kube-gateway:v1", "The image to be used as the gateway")
+	kTLS := flag.Bool("ktls", false, "Use in-Kernel TLS")
+
 	flag.Parse()
 
 	if *ca {
@@ -139,7 +141,7 @@ func main() {
 		if err != nil {
 			slog.PanicErr(err)
 		}
-		certCollection.watcher(c, image)
+		certCollection.watcher(c, image, kTLS)
 	}
 
 }
@@ -440,15 +442,16 @@ type informerHandler struct {
 	clientset *kubernetes.Clientset
 	c         *certs
 	image     string
+	kTLS      bool
 }
 
-func (c *certs) watcher(clientSet *kubernetes.Clientset, image *string) error {
+func (c *certs) watcher(clientSet *kubernetes.Clientset, image *string, kTLS *bool) error {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
 
 	informer := factory.Core().V1().Pods().Informer()
 
-	_, err := informer.AddEventHandler(&informerHandler{clientset: clientSet, c: c, image: *image})
+	_, err := informer.AddEventHandler(&informerHandler{clientset: clientSet, c: c, image: *image, kTLS: *kTLS})
 	if err != nil {
 		return err
 	}
@@ -483,7 +486,7 @@ func (i *informerHandler) OnUpdate(oldObj, newObj interface{}) {
 			slog.Error(err)
 		}
 		// 2. Add an ephemeral container to the pod spec.
-		podWithEphemeralContainer := withProxyContainer(newPod, &i.image)
+		podWithEphemeralContainer := i.withProxyContainer(newPod, &i.image)
 
 		// 3. Prepare the patch.
 		podJSON, err := json.Marshal(newPod)
@@ -535,7 +538,7 @@ func (i *informerHandler) OnDelete(obj interface{}) {
 func (i *informerHandler) OnAdd(obj interface{}, b bool) {
 }
 
-func withProxyContainer(pod *v1.Pod, image *string) *v1.Pod {
+func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string) *v1.Pod {
 	privileged := true
 	secret := pod.Name + "-smesh"
 	ec := &v1.EphemeralContainer{
@@ -558,6 +561,11 @@ func withProxyContainer(pod *v1.Pod, image *string) *v1.Pod {
 			},
 		},
 	}
+
+	if i.kTLS {
+		ec.EphemeralContainerCommon.Args = []string{"-ktls"}
+	}
+
 	copied := pod.DeepCopy()
 	copied.Spec.EphemeralContainers = append(copied.Spec.EphemeralContainers, *ec)
 	copied.Spec.ShareProcessNamespace = &privileged

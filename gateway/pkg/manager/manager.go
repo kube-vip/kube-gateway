@@ -136,6 +136,7 @@ func Setup() (*connection.Config, error) {
 	flag.IntVar(&c.ClusterTLSPort, "clusterTLSPort", 18443, "External port for cluster connectivity (TLS)")
 	flag.StringVar(&c.PodCIDR, "podCIDR", "10.244.0.0/16", "The CIDR range used for POD IP addresses")
 	flag.BoolVar(&c.Tunnel, "tunnel", false, "Run as a tunnel")
+	flag.BoolVar(&c.KTLS, "ktls", true, "Enable TLS to be performed by the kernel")
 	flag.Parse()
 
 	// Lookup for environment variable
@@ -171,6 +172,7 @@ func Setup() (*connection.Config, error) {
 
 // This is a blocking function
 func Start(c *connection.Config) error {
+	slog.Info("Starting gateway", "kTLS", c.KTLS)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// Start the proxy server on the localhost
@@ -201,9 +203,18 @@ func Start(c *connection.Config) error {
 
 	// If we have secrets enable a TLS listener
 	if c.Certificates != nil {
-		externalTLSListener := c.StartExternalTLSListener()
+		var externalTLSListener net.Listener
+		if c.KTLS {
+			externalTLSListener = c.StartExternalkTLSListener()
+		} else {
+			externalTLSListener = c.StartExternalTLSListener()
+		}
 		defer externalTLSListener.Close()
-		go c.StartTLSListener(externalTLSListener)
+		if c.KTLS {
+			go c.StartkTLSListener(externalTLSListener)
+		} else {
+			go c.StartTLSListener(externalTLSListener)
+		}
 	}
 
 	go c.StartListeners(externalListener, false)
