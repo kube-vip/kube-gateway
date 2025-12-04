@@ -41,13 +41,20 @@ Start the demo workload (unencrypted)!
 
 You can use wireguard to watch the traffic unencrypted flying back and forth.
 
-## Enable encryption 🔐
+## Encryption 🔐
+
+### To use kTLS (in-kernel TLS)
+
+This has to be done **first** for kTLS offload to be enabled.
+`kubectl annotate pod <pod name> kube-gateway.io/ktls="true"`
+
+### Enable Encryption between pods
 
 This will apply the gateway to pod-01:
-`kubectl annotate pod pod-01 kube-gateway.io="true"`
+`kubectl annotate pod pod-01 kube-gateway.io/encrypt="true"`
 
 This will then apply the other gateway to pod-02:
-`kubectl annotate pod pod-02 kube-gateway.io="true"`
+`kubectl annotate pod pod-02 kube-gateway.io/encrypt="true"`
 
 At which point all traffic will be encrypted end-to-end 🤩
 

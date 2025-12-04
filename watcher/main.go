@@ -32,6 +32,13 @@ import (
 	"github.com/gookit/slog"
 )
 
+const (
+	enabled        = "kube-gateway.io/enabled"
+	encryptGateway = "kube-gateway.io/encrypt"
+	enableKTLS     = "kube-gateway.io/ktls"
+	aiGateway      = "kube-gateway.io/ai"
+)
+
 type certs struct {
 	cacert []byte
 	cakey  []byte
@@ -48,7 +55,7 @@ func main() {
 	}
 
 	var certCollection certs
-
+	slog.Info("Watcher, starting")
 	slog.Info("Starting Certicate creation 🔏")
 	ca := flag.Bool("ca", false, "Create a CA")
 	certName := flag.String("cert", "", "Create a certificate from the CA")
@@ -59,7 +66,6 @@ func main() {
 	loadCA := flag.Bool("loadca", false, "Create a secret in Kubernetes with the certificate")
 	watch := flag.Bool("watch", false, "Watch Kubernetes for pods being created and create certs")
 	image := flag.String("image", "thebsdbox/kube-gateway:v1", "The image to be used as the gateway")
-	kTLS := flag.Bool("ktls", false, "Use in-Kernel TLS")
 
 	flag.Parse()
 
@@ -141,7 +147,7 @@ func main() {
 		if err != nil {
 			slog.PanicErr(err)
 		}
-		certCollection.watcher(c, image, kTLS)
+		certCollection.watcher(c, image)
 	}
 
 }
@@ -442,16 +448,15 @@ type informerHandler struct {
 	clientset *kubernetes.Clientset
 	c         *certs
 	image     string
-	kTLS      bool
 }
 
-func (c *certs) watcher(clientSet *kubernetes.Clientset, image *string, kTLS *bool) error {
+func (c *certs) watcher(clientSet *kubernetes.Clientset, image *string) error {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
 
 	informer := factory.Core().V1().Pods().Informer()
 
-	_, err := informer.AddEventHandler(&informerHandler{clientset: clientSet, c: c, image: *image, kTLS: *kTLS})
+	_, err := informer.AddEventHandler(&informerHandler{clientset: clientSet, c: c, image: *image})
 	if err != nil {
 		return err
 	}
@@ -472,13 +477,8 @@ func (i *informerHandler) OnUpdate(oldObj, newObj interface{}) {
 	// oldPod := oldObj.(*v1.Pod)
 
 	// Inspect the changes, ensure we have an IP address and the annotation exists
-	if newPod.Status.PodIP != "" && newPod.Annotations["kube-gateway.io"] != "" {
-		i.c.createCertificate(newPod.Name, newPod.Status.PodIP)
+	if newPod.Status.PodIP != "" && newPod.Annotations[enabled] == "" && annotationLookup([]string{aiGateway, encryptGateway}, newPod.Annotations) {
 
-		err := i.c.loadSecret(newPod.Name, i.clientset)
-		if err != nil {
-			slog.Error(err)
-		}
 		// 2. Add an ephemeral container to the pod spec.
 		podWithEphemeralContainer := i.withProxyContainer(newPod, &i.image)
 
@@ -511,10 +511,17 @@ func (i *informerHandler) OnUpdate(oldObj, newObj interface{}) {
 				"ephemeralcontainers",
 			)
 		if err != nil {
-			panic(err.Error())
+			slog.Error("patching container", "err", err.Error())
 		}
 
-		slog.Info("Ephemeral containers", "added", len(newPod.Spec.EphemeralContainers))
+		// Update the annotations as we've successfully enabled the proxy
+		newPod.Annotations[enabled] = "true"
+		_, err = i.clientset.CoreV1().Pods(newPod.Namespace).Update(context.TODO(), newPod, metav1.UpdateOptions{})
+		if err != nil {
+			slog.Error("updating container", "err", err.Error())
+		}
+
+		slog.Info("Ephemeral containers", "name", newPod.Name, "added", len(newPod.Spec.EphemeralContainers), "Annotated", newPod.Annotations[enabled])
 	}
 }
 
@@ -534,6 +541,7 @@ func (i *informerHandler) OnAdd(obj interface{}, b bool) {
 }
 
 func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string) *v1.Pod {
+
 	privileged := true
 	secret := pod.Name + "-smesh"
 	ec := &v1.EphemeralContainer{
@@ -541,28 +549,50 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string) *v1.Pod
 		EphemeralContainerCommon: v1.EphemeralContainerCommon{
 			Name:  "kube-gateway",
 			Image: *image,
-			EnvFrom: []v1.EnvFromSource{
-				{
-					SecretRef: &v1.SecretEnvSource{
-						LocalObjectReference: v1.LocalObjectReference{
-							Name: secret,
-						},
-						Optional: nil,
-					},
-				},
-			},
 			SecurityContext: &v1.SecurityContext{
 				Privileged: &privileged, // TODO: Fix permissions
 			},
 		},
 	}
+	// Check for encyption annotation
+	if pod.Annotations[encryptGateway] != "" {
+		// Create certificates and then a Kubernetes secret
+		i.c.createCertificate(pod.Name, pod.Status.PodIP)
 
-	if i.kTLS {
-		ec.EphemeralContainerCommon.Args = []string{"-ktls"}
+		err := i.c.loadSecret(pod.Name, i.clientset)
+		if err != nil {
+			slog.Error(err)
+		}
+		ec.EnvFrom = append(ec.EnvFrom, v1.EnvFromSource{
+			SecretRef: &v1.SecretEnvSource{
+				LocalObjectReference: v1.LocalObjectReference{
+					Name: secret,
+				},
+				Optional: nil,
+			},
+		})
+
+		// If we're wanting to offload TLS to the kernel
+		if pod.Annotations[enableKTLS] != "" {
+			ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "KTLS", Value: "TRUE"})
+		}
 	}
+
+	// Set the pod to have an enabled annotation
+	pod.Annotations[enabled] = "true"
 
 	copied := pod.DeepCopy()
 	copied.Spec.EphemeralContainers = append(copied.Spec.EphemeralContainers, *ec)
 	copied.Spec.ShareProcessNamespace = &privileged
 	return copied
+}
+
+// Loop through the annotations to see if any of them are set
+func annotationLookup(annotation []string, annotations map[string]string) (found bool) {
+	for x := range annotation {
+		if _, ok := annotations[annotation[x]]; ok {
+			found = true
+		}
+	}
+	return
 }
