@@ -476,6 +476,12 @@ func (i *informerHandler) OnUpdate(oldObj, newObj interface{}) {
 	newPod := newObj.(*v1.Pod)
 	// oldPod := oldObj.(*v1.Pod)
 
+	// Look at all the ephemeral containers added to the pod, if the gateway already exists then don't change the pod
+	for x := range newPod.Status.EphemeralContainerStatuses {
+		if newPod.Status.EphemeralContainerStatuses[x].Name == "kube-gateway" {
+			return
+		}
+	}
 	// Inspect the changes, ensure we have an IP address and the annotation exists
 	if newPod.Status.PodIP != "" && newPod.Annotations[enabled] == "" && annotationLookup([]string{aiGateway, encryptGateway}, newPod.Annotations) {
 
