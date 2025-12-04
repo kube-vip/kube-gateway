@@ -16,10 +16,13 @@ help:
 
 .DEFAULT_GOAL := all
 
-kind:
+kind_create:
 	@kind create cluster --config ./kind.yaml
 
+kind_push: kind_demo kind_watcher kind_gateway
+
 demo: build_demo push_demo
+	@kubectl apply -f ./demo/deployment.yaml
 
 build_demo:
 	@docker build -t ${DEMOIMAGEFULLNAME} ./demo
@@ -30,7 +33,8 @@ push_demo:
 kind_demo:
 	@kind load docker-image ${DEMOIMAGEFULLNAME}
 
-watcher: build_watcher push_watcher
+watcher: build_watcher push_watcher 
+	@kubectl apply -f ./watcher/deployment.yaml
 
 build_watcher:
 	@docker build -t ${WATCHERIMAGEFULLNAME} -f ./Dockerfile_Watcher .

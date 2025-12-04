@@ -136,9 +136,13 @@ func Setup() (*connection.Config, error) {
 	flag.IntVar(&c.ClusterTLSPort, "clusterTLSPort", 18443, "External port for cluster connectivity (TLS)")
 	flag.StringVar(&c.PodCIDR, "podCIDR", "10.244.0.0/16", "The CIDR range used for POD IP addresses")
 	flag.BoolVar(&c.Tunnel, "tunnel", false, "Run as a tunnel")
-	flag.BoolVar(&c.KTLS, "ktls", true, "Enable TLS to be performed by the kernel")
+	flag.BoolVar(&c.KTLS, "ktls", false, "Enable TLS to be performed by the kernel")
 	flag.Parse()
 
+	_, exists := os.LookupEnv("KTLS")
+	if exists {
+		c.KTLS = true
+	}
 	// Lookup for environment variable
 	envAddress, exists := os.LookupEnv("KUBE_NODE_NAME")
 	if exists {

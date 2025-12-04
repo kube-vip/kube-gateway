@@ -1,0 +1,14 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: aiclient
+build:
+  local:
+    useBuildkit: true
+  artifacts:
+    - image: aipod
+      docker:
+        dockerfile: Dockerfile
+manifests:
+  rawYaml:
+    - pod.yaml

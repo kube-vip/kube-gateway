@@ -13,7 +13,7 @@ metadata:
 rules:
   - apiGroups: [""] # "" indicates the core API group
     resources: ["pods"]
-    verbs: ["get", "watch", "list", "patch"]
+    verbs: ["get", "watch", "list", "patch", "update"]
   - apiGroups: [""] # "" indicates the core API group
     resources: ["pods/ephemeralcontainers"]
     verbs: ["patch", "update"]
@@ -43,7 +43,7 @@ spec:
   containers:
     - name: kube-cert-watcher
       image: thebsdbox/watcher:v1
-      imagePullPolicy: Always
+      imagePullPolicy: IfNotPresent
       command: ["/kube-cert-watcher", "-watch"]
       resources:
         requests:

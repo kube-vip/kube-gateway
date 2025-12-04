@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: aipod
+  labels:
+    env: prod
+spec:
+  containers:
+    - name: aipod
+      image: aipod
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: MODEL
+          value: "llama3.2"
+        - name: TOKEN
+          value: ""
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 1Gi

@@ -1,0 +1,14 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: watcher
+build:
+  local:
+    useBuildkit: true
+  artifacts:
+    - image: thebsdbox/watcher
+      docker:
+        dockerfile: Dockerfile_Watcher
+manifests:
+  rawYaml:
+    - deployment.yaml
