@@ -35,7 +35,7 @@ int cg_connect4(struct bpf_sock_addr *ctx) {
   int mask = (-1) << (32 - conf->mask);
   // bpf_printk("hex 0x%x 0x%x 0x%x", bpf_htonl(ctx->user_ip4), mask,
   //            conf->network);
-  // bpf_printk("outbound to %pI4", &destination);
+  bpf_printk("outbound to %pI4", &destination);
 
   // If this packet is not part of the podCIDR range then return
   if ((bpf_htonl(ctx->user_ip4) & mask) != conf->network) {
@@ -213,5 +213,7 @@ int cg_sock_opt(struct bpf_sockopt *ctx) {
   }
   return 1;
 }
+
+
 
 char __LICENSE[] SEC("license") = "GPL";

@@ -8,11 +8,13 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"structs"
 
 	"github.com/cilium/ebpf"
 )
 
 type mirrorsConfig struct {
+	_         structs.HostLayout
 	ProxyAddr uint32
 	ProxyPort uint16
 	_         [2]byte
@@ -24,6 +26,7 @@ type mirrorsConfig struct {
 }
 
 type mirrorsSocket struct {
+	_       structs.HostLayout
 	SrcAddr uint32
 	SrcPort uint16
 	_       [2]byte
@@ -67,9 +70,10 @@ func loadMirrorsObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
 type mirrorsSpecs struct {
 	mirrorsProgramSpecs
 	mirrorsMapSpecs
+	mirrorsVariableSpecs
 }
 
-// mirrorsSpecs contains programs before they are loaded into the kernel.
+// mirrorsProgramSpecs contains programs before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type mirrorsProgramSpecs struct {
@@ -87,12 +91,19 @@ type mirrorsMapSpecs struct {
 	MapSocks  *ebpf.MapSpec `ebpf:"map_socks"`
 }
 
+// mirrorsVariableSpecs contains global variables before they are loaded into the kernel.
+//
+// It can be passed ebpf.CollectionSpec.Assign.
+type mirrorsVariableSpecs struct {
+}
+
 // mirrorsObjects contains all objects after they have been loaded into the kernel.
 //
 // It can be passed to loadMirrorsObjects or ebpf.CollectionSpec.LoadAndAssign.
 type mirrorsObjects struct {
 	mirrorsPrograms
 	mirrorsMaps
+	mirrorsVariables
 }
 
 func (o *mirrorsObjects) Close() error {
@@ -117,6 +128,12 @@ func (m *mirrorsMaps) Close() error {
 		m.MapPorts,
 		m.MapSocks,
 	)
+}
+
+// mirrorsVariables contains all global variables after they have been loaded into the kernel.
+//
+// It can be passed to loadMirrorsObjects or ebpf.CollectionSpec.LoadAndAssign.
+type mirrorsVariables struct {
 }
 
 // mirrorsPrograms contains all programs after they have been loaded into the kernel.
