@@ -20,15 +20,19 @@ type Config struct {
 	ClusterAddress string // For Debug purposes
 	CgroupOverride string // For Debug purposes
 
-	Tunnel bool // Running as a tunnel compared to a sidecar
-
 	PodCIDR      string
 	Certificates *Certs
 
 	Socks *ebpf.Map
 
-	KTLS      bool // Enable Kernel TLS
 	ProxyFunc func(string) string
+
+	// Environment Variables
+	Tunnel  bool // Running as a tunnel compared to a sidecar
+	Encrypt bool // Load certificates as traffic is encrypted
+	KTLS    bool // Enable Kernel TLS
+	Flush   bool // Find existing network connections and terminate them
+	AI      bool // Workload is going to be AI
 }
 
 func (c *Config) StartInternalListener() net.Listener {

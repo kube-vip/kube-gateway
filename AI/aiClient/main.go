@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -16,21 +17,35 @@ func main() {
 		model = "llama3.2"
 	}
 	log.Println("Settings", "model", model)
-
+	//c := http.Client{}
 	ctx := context.Background()
 	client := openai.NewClient(
 		oaioption.WithBaseURL("http://ollama.ollama:11434/v1"),
 		oaioption.WithAPIKey("ollama"),
+	//	oaioption.WithHTTPClient(&c),
 	)
-	resp, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model: model,
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage("Tell me a joke about Go."),
-		},
-	})
+
+	r, err := client.Models.List(ctx, client.Options...)
 	if err != nil {
 		time.Sleep(time.Minute)
-		log.Fatalf("Failed to generate: %v", err)
+		log.Fatalf("Failed to retieve models: %v", err)
 	}
-	log.Println("Response:", resp.Choices[0].Message.Content)
+	for x := range r.Data {
+		fmt.Printf("Found Model: %s\n", r.Data[x].ID)
+	}
+	for {
+		resp, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+			Model: model,
+			Messages: []openai.ChatCompletionMessageParamUnion{
+				openai.UserMessage("Tell me a joke about Go."),
+			},
+		})
+		if err != nil {
+			time.Sleep(time.Minute)
+			log.Fatalf("Failed to generate: %v", err)
+		}
+		log.Println("Response:", resp.Choices[0].Message.Content)
+		//c.CloseIdleConnections()
+		time.Sleep(time.Second * 15)
+	}
 }

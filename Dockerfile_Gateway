@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:experimental
 
 FROM golang:1.25-alpine as dev
-RUN apk add --no-cache git ca-certificates upx
+RUN apk add --no-cache git ca-certificates upx libpcap-dev gcc musl-dev
 RUN adduser -D appuser
 COPY . /src/
 WORKDIR /src/gateway
@@ -9,9 +9,11 @@ WORKDIR /src/gateway
 ENV GO111MODULE=on
 RUN --mount=type=cache,sharing=locked,id=gomod,target=/go/pkg/mod/cache \
     --mount=type=cache,sharing=locked,id=goroot,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags '-s -w -extldflags -static' -o kube-gateway .
-RUN upx ./kube-gateway
+    CGO_ENABLED=1 GOOS=linux go build -ldflags '-s -w -extldflags -static' -o kube-gateway .
+RUN upx ./kube-gateway; cp ./kube-gateway /
 
-FROM scratch
-COPY --from=dev /src/gateway/kube-gateway /
+
+
+#FROM scratch
+#COPY --from=dev /src/gateway/kube-gateway /
 CMD ["/kube-gateway"]
