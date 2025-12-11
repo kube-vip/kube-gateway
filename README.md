@@ -74,6 +74,12 @@ Apply the gateway to the pod with the following:
 `kubectl annotate pod pod-01 kube-gateway.io/ai="true"`
 
 ### Override example (model type)
+Make sure that the model has been pulled into ollama first :-) 
+
+```
+curl -X POST http://172.18.0.4:30007/api/pull -H 'Content-Type: application/json' -d '{"name": "gemma2:2b"}'
+```
+
 `kubectl annotate pod pod-01 kube-gateway.io/ai-model="gemma2:2b"`
 
 ## Debugging

@@ -45,7 +45,7 @@ func (i *informerHandler) OnUpdate(oldObj, newObj interface{}) {
 	// oldPod := oldObj.(*v1.Pod)
 
 	// Inspect the changes, ensure we have an IP address and the annotation exists
-	if newPod.Status.PodIP != "" && newPod.Annotations[enabled] == "" && annotationLookup([]string{aiGateway, encryptGateway}, newPod.Annotations) {
+	if newPod.Status.PodIP != "" && newPod.Annotations[enabled] == "" && annotationLookup([]string{aiGateway, encryptGateway, endpoint}, newPod.Annotations) {
 
 		// 2. Add an ephemeral container to the pod spec.
 		podWithEphemeralContainer := i.withProxyContainer(newPod, &i.image)

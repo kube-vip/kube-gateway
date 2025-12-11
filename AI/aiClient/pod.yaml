@@ -3,11 +3,13 @@ kind: Pod
 metadata:
   name: aipod
   labels:
-    env: prod
+    app: aipod
 spec:
   containers:
     - name: aipod
       image: aipod
+      ports:
+        - containerPort: 8000
       imagePullPolicy: IfNotPresent
       env:
         - name: MODEL
@@ -21,3 +23,17 @@ spec:
         limits:
           cpu: 2000m
           memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: aipod
+  name: aipod
+spec:
+  type: NodePort
+  ports:
+    - port: 8000
+      nodePort: 30008
+  selector:
+    app: aipod

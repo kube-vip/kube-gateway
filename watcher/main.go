@@ -15,6 +15,8 @@ import (
 const (
 	debug = "kube-gateway.io/debug"
 
+	endpoint = "kube-gateway.io/endpoint"
+
 	enabled        = "kube-gateway.io/enabled"
 	encryptGateway = "kube-gateway.io/encrypt"
 	enableKTLS     = "kube-gateway.io/ktls"
