@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"gateway/pkg/connection"
+	"gateway/pkg/gateway"
 	"io"
 	"net"
 	"os"
@@ -193,23 +194,32 @@ func Setup() (*connection.Config, error) {
 		c.PodCIDR = podCIDR
 	}
 
+	c.Gateway = &gateway.Config{
+		Model: os.Getenv("MODEL"),
+	}
+
 	return &c, nil
 }
 
 // This is a blocking function
 func Start(c *connection.Config) error {
-	slog.Info("Starting gateway", "kTLS", c.KTLS)
+
+	slog.Info("Starting kube-gateway 🐙")
+	slog.Info("Features", "Encryption", c.Encrypt, "kTLS", c.KTLS, "AI", c.AI, "NETFLUSH", c.Flush)
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// Start the proxy server on the localhost
 	// We only demonstrate IPv4 in this example, but the same approach can be used for IPv6
+
 	c.Socks = tracker.objs.MapSocks
-	internalListener := c.StartInternalListener()
+	internalListener := c.CreateInternalListener()
 	defer internalListener.Close()
 	go c.StartListeners(internalListener, true)
 
 	var err error
-	externalListener := c.StartExternalListener()
+	// Create our listeners (don't accept traffic yet)
+	externalListener := c.CreateExternalListener()
 	defer externalListener.Close()
 
 	// Attempt to get certificates from API
@@ -218,31 +228,35 @@ func Start(c *connection.Config) error {
 	// 	slog.Error(err)
 	// Attempt to get from environment secrets
 
-	c.Certificates, err = connection.GetEnvCerts()
-	if err != nil {
-		slog.Error(err)
-		c.Certificates, err = connection.GetFSCerts()
+	if c.Encrypt {
+		c.Certificates, err = connection.GetEnvCerts()
 		if err != nil {
 			slog.Error(err)
+			c.Certificates, err = connection.GetFSCerts()
+			if err != nil {
+				slog.Error(err)
+			}
+		}
+
+		// Start a listener inside the pod, traffic is redirected here from the eBPF program
+		// If we have secrets enable a TLS listener
+		if c.Certificates != nil {
+			var externalTLSListener net.Listener
+			if c.KTLS {
+				externalTLSListener = c.StartExternalkTLSListener()
+			} else {
+				externalTLSListener = c.StartExternalTLSListener()
+			}
+			defer externalTLSListener.Close()
+			if c.KTLS {
+				go c.StartkTLSListener(externalTLSListener)
+			} else {
+				go c.StartTLSListener(externalTLSListener)
+			}
 		}
 	}
 
-	// If we have secrets enable a TLS listener
-	if c.Certificates != nil {
-		var externalTLSListener net.Listener
-		if c.KTLS {
-			externalTLSListener = c.StartExternalkTLSListener()
-		} else {
-			externalTLSListener = c.StartExternalTLSListener()
-		}
-		defer externalTLSListener.Close()
-		if c.KTLS {
-			go c.StartkTLSListener(externalTLSListener)
-		} else {
-			go c.StartTLSListener(externalTLSListener)
-		}
-	}
-
+	// Incoming traffic from outside the pod
 	go c.StartListeners(externalListener, false)
 	_, exists := os.LookupEnv("DEBUG")
 	if exists {

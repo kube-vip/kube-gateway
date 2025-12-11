@@ -63,3 +63,17 @@ spec:
       nodePort: 30007
   selector:
     app: ollama
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ollama
+  name: ollama1
+  namespace: ollama
+spec:
+  clusterIP: None # <= Don't forget!!
+  ports:
+    - port: 11434
+  selector:
+    app: ollama

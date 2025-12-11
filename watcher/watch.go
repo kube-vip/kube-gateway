@@ -124,6 +124,9 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string) *v1.Pod
 	}
 	// Check for encyption annotation
 	if pod.Annotations[encryptGateway] != "" {
+		// Ensure the kube-gateway enables encryption
+		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "ENCRYPT", Value: "TRUE"})
+
 		// Create certificates and then a Kubernetes secret
 		i.c.createCertificate(pod.Name, pod.Status.PodIP)
 
@@ -147,11 +150,20 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string) *v1.Pod
 
 	}
 
+	// Enable AI gateway
 	if pod.Annotations[aiGateway] != "" {
 		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "AI", Value: "TRUE"})
-		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "DEBUG", Value: "TRUE"})
-
+		// override the AI model
+		if pod.Annotations[aiModel] != "" {
+			ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "MODEL", Value: pod.Annotations[aiModel]})
+		}
 	}
+
+	// Enable the debug mode
+	if pod.Annotations[debug] != "" {
+		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "DEBUG", Value: "TRUE"})
+	}
+
 	// Set the pod to have an enabled annotation
 	pod.Annotations[enabled] = "true"
 

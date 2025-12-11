@@ -20,7 +20,7 @@ func main() {
 	//c := http.Client{}
 	ctx := context.Background()
 	client := openai.NewClient(
-		oaioption.WithBaseURL("http://ollama.ollama:11434/v1"),
+		oaioption.WithBaseURL("http://ollama1.ollama:11434/v1"), //ollama is svc // ollama1 is pod
 		oaioption.WithAPIKey("ollama"),
 	//	oaioption.WithHTTPClient(&c),
 	)

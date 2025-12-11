@@ -60,94 +60,38 @@ func (c *Config) StartTLSListener(listener net.Listener) {
 	}
 }
 
-// HTTP proxy request handler
-func (c *Config) internalTLSProxy(conn net.Conn) {
-	defer conn.Close()
-	// Get original destination address
-	destAddr, destPort, err := c.findTargetFromConnection(conn)
+
+func (c *Config) createTLSProxy(destAddr string) (net.Conn, error) {
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(c.Certificates.ca) {
+		log.Fatalf("could not append CA")
+	}
+	certificate, err := tls.X509KeyPair(c.Certificates.cert, c.Certificates.key)
 	if err != nil {
-		return
+		log.Fatalf("could not load certificate: %v", err)
 	}
-	targetDestination := fmt.Sprintf("%s:%d", destAddr, destPort)
-	var targetConn net.Conn
-	var endpoint string
-	// Send traffic to endpoint gateway
-	if c.Certificates != nil {
 
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(c.Certificates.ca) {
-			log.Fatalf("could not append CA")
-		}
-		certificate, err := tls.X509KeyPair(c.Certificates.cert, c.Certificates.key)
-		if err != nil {
-			log.Fatalf("could not load certificate: %v", err)
-		}
+	config := &tls.Config{
+		RootCAs:      caCertPool,
+		Certificates: []tls.Certificate{certificate},
+		ClientAuth:   tls.VerifyClientCertIfGiven,
+	} //<-- this is the key
 
-		config := &tls.Config{
-			RootCAs:      caCertPool,
-			Certificates: []tls.Certificate{certificate},
-			ClientAuth:   tls.VerifyClientCertIfGiven,
-		} //<-- this is the key
-
-		endpoint = fmt.Sprintf("%s:%d", destAddr, c.ClusterTLSPort)
-		if c.ClusterAddress != "" {
-			endpoint = fmt.Sprintf("%s:%d", c.ClusterAddress, c.ClusterPort)
-		}
-		if c.Tunnel {
-			endpoint = fmt.Sprintf("%s:%d", c.ProxyFunc(destAddr), c.ClusterPort)
-		}
-
-		// Set a timeout, mainly because connections can occur to pods that aren't ready
-		d := net.Dialer{Timeout: time.Second * 3}
-		targetConn, err = tls.DialWithDialer(&d, "tcp", endpoint, config)
-		if err != nil {
-			slog.Printf("Failed to connect to destination TLS proxy: %v", err)
-			return
-		}
-	} else {
-		endpoint = fmt.Sprintf("%s:%d", destAddr, c.ClusterPort)
-		if c.ClusterAddress != "" {
-			endpoint = fmt.Sprintf("%s:%d", c.ClusterAddress, c.ClusterPort)
-		}
-		if c.Tunnel {
-			endpoint = fmt.Sprintf("%s:%d", c.ProxyFunc(destAddr), c.ClusterPort)
-		}
-		// Check that the original destination address is reachable from the proxy
-		targetConn, err = net.DialTimeout("tcp", endpoint, 5*time.Second)
-		if err != nil {
-			slog.Printf("Failed to connect to original destination: %v", err)
-			return
-		}
+	endpoint := fmt.Sprintf("%s:%d", destAddr, c.ClusterTLSPort)
+	if c.ClusterAddress != "" {
+		endpoint = fmt.Sprintf("%s:%d", c.ClusterAddress, c.ClusterPort)
 	}
-	defer targetConn.Close()
+	if c.Tunnel {
+		endpoint = fmt.Sprintf("%s:%d", c.ProxyFunc(destAddr), c.ClusterPort)
+	}
 
-	slog.Printf("connect to proxy %s, original %s", endpoint, targetDestination)
-	//log.Printf("Internal proxy sending original destination: %s\n", targetDestination)
-	_, err = targetConn.Write([]byte(targetDestination))
+	// Set a timeout, mainly because connections can occur to pods that aren't ready
+	d := net.Dialer{Timeout: time.Second * 3}
+	targetConn, err := tls.DialWithDialer(&d, "tcp", endpoint, config)
 	if err != nil {
-		slog.Printf("Failed to send original destination: %v", err)
+		return nil, fmt.Errorf("Failed to connect to destination TLS proxy: %v", err)
 	}
-
-	tmp := make([]byte, 256)
-
-	// Ideally we wait here until our remote endpoint has recieved the targetDestination
-	targetConn.Read(tmp)
-
-	//log.Printf("Internal connection from %s to %s\n", conn.RemoteAddr(), targetConn.RemoteAddr())
-
-	// The following code creates two data transfer channels:
-	// - From the client to the target server (handled by a separate goroutine).
-	// - From the target server to the client (handled by the main goroutine).
-	go func() {
-		_, err = io.Copy(targetConn, conn)
-		if err != nil {
-			slog.Printf("Failed copying data to target: %v", err)
-		}
-	}()
-	_, err = io.Copy(conn, targetConn)
-	if err != nil {
-		slog.Printf("Failed copying data from target: %v", err)
-	}
+	return targetConn, nil
 }
 
 // Unencrypted external connection

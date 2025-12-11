@@ -90,6 +90,7 @@ func (t *Tuple) Run(iface string, prom bool, count, timeout int) error {
 		handle,
 		handle.LinkType(),
 	)
+	var ingress, egress bool
 
 	for packet := range packetSource.Packets() {
 
@@ -120,25 +121,47 @@ func (t *Tuple) Run(iface string, prom bool, count, timeout int) error {
 			if tcp.SYN || tcp.FIN || tcp.RST {
 				continue
 			}
-			// If it matches then reset it (match in the other direction too)
-			// if (t.SourceIP == ip.SrcIP.String() &&
+			//fmt.Printf("%s %d %s %d == %s %d %s %d\n", ip.SrcIP.String(), tcp.SrcPort, ip.DstIP.String(), tcp.DstPort, t.SourceIP, t.SourcePort, t.DestIP, t.DestPort)
+
+			// if t.SourceIP == ip.SrcIP.String() &&
 			// 	t.SourcePort == uint32(tcp.SrcPort) &&
 			// 	t.DestIP == ip.DstIP.String() &&
-			// 	t.DestPort == uint32(tcp.DstPort)) ||
+			// 	t.DestPort == uint32(tcp.DstPort) {
+			// 	found = true
+			// 	fmt.Printf("%s %d %s %d == %s %d %s %d\n", ip.SrcIP.String(), tcp.SrcPort, ip.DstIP.String(), tcp.DstPort, t.SourceIP, t.SourcePort, t.DestIP, t.DestPort)
 
-			// 	(t.SourceIP == ip.DstIP.String() &&
-			// 		t.SourcePort == uint32(tcp.DstPort) &&
-			// 		t.DestIP == ip.SrcIP.String() &&
-			// 		t.DestPort == uint32(tcp.SrcPort)) {
+			// }
+			if (ip.SrcIP.String() == t.SourceIP && tcp.SrcPort == layers.TCPPort(t.SourcePort)) &&
+				(ip.DstIP.String() == t.DestIP && tcp.DstPort == layers.TCPPort(t.DestPort)) {
+				fmt.Printf("ingress: %s %d %s %d == %s %d %s %d\n", ip.SrcIP.String(), tcp.SrcPort, ip.DstIP.String(), tcp.DstPort, t.SourceIP, t.SourcePort, t.DestIP, t.DestPort)
+				ingress = true
+			}
+			if (ip.DstIP.String() == t.SourceIP && tcp.DstPort == layers.TCPPort(t.SourcePort)) &&
+				(ip.SrcIP.String() == t.DestIP && tcp.SrcPort == layers.TCPPort(t.DestPort)) {
+				fmt.Printf("egress: %s %d %s %d == %s %d %s %d\n", ip.SrcIP.String(), tcp.SrcPort, ip.DstIP.String(), tcp.DstPort, t.SourceIP, t.SourcePort, t.DestIP, t.DestPort)
+				egress = true
+			}
+			// If it matches then reset it (match in the other direction too)
 
-			for i := 0; i < count; i++ {
-				seq := tcp.Ack + uint32(i)*uint32(tcp.Window)
-				err := sendRST(eth.DstMAC, eth.SrcMAC, ip.DstIP, ip.SrcIP, tcp.DstPort, tcp.SrcPort, seq, handle)
-				if err != nil {
-					return err
+			// if t.SourceIP == ip.DstIP.String() &&
+			// 	t.SourcePort == uint32(tcp.DstPort) &&
+			// 	t.DestIP == ip.SrcIP.String() &&
+			// 	t.DestPort == uint32(tcp.SrcPort) {
+			// 	egress = true
+			// 	fmt.Printf("2: %s %d %s %d / %s %d %s %d\n", t.SourceIP, t.SourcePort, t.DestIP, t.DestPort, ip.SrcIP.String(), tcp.SrcPort, ip.DstIP.String(), tcp.DstPort)
+
+			// }
+			if ingress || egress {
+				for i := 0; i < count; i++ {
+					seq := tcp.Ack + uint32(i)*uint32(tcp.Window)
+					err := sendRST(eth.DstMAC, eth.SrcMAC, ip.DstIP, ip.SrcIP, tcp.DstPort, tcp.SrcPort, seq, handle)
+					if err != nil {
+						return err
+					}
 				}
-				// }
-				//return nil
+				if egress && ingress { // when both sides of communication is reset return
+					return nil
+				}
 			}
 		}
 	}

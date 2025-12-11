@@ -68,6 +68,14 @@ This will then apply the other gateway to pod-02:
 
 At which point all traffic will be encrypted end-to-end 🤩
 
+## AI 🤖
+
+Apply the gateway to the pod with the following:
+`kubectl annotate pod pod-01 kube-gateway.io/ai="true"`
+
+### Override example (model type)
+`kubectl annotate pod pod-01 kube-gateway.io/ai-model="gemma2:2b"`
+
 ## Debugging
 
 You can see the logs of the gateway with the following: 
