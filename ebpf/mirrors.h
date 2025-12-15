@@ -48,6 +48,13 @@ struct {
   __type(value, __u64);
 } map_ports SEC(".maps");
 
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __uint(max_entries, MAX_CONNECTIONS);
+  __type(key, __u32);
+  __type(value, __u8);
+} map_pids SEC(".maps");
+
 // struct pid_namespace *get_task_pid_ns(const struct task_struct *task);
 // struct pid *get_task_pid_ptr(const struct task_struct *task,
 //                              enum pid_type type);

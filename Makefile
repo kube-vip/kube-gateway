@@ -4,6 +4,7 @@ REPO=thebsdbox
 GATEWAYIMAGEFULLNAME=${REPO}/kube-gateway:${VERSION}
 DEMOIMAGEFULLNAME=demo/demo:${VERSION}
 WATCHERIMAGEFULLNAME=${REPO}/watcher:${VERSION}
+AIPODFULLNAME=${REPO}/aipod:${VERSION}
 
 .PHONY: help build push all
 
@@ -52,6 +53,17 @@ build_gateway:
 
 push_gateway:
 	@docker push ${GATEWAYIMAGEFULLNAME}
+
+build_aipod:
+	@docker build -t ${AIPODFULLNAME} -f ./Dockerfile_Watcher .
+
+push_aipod:
+	@docker push ${AIPODFULLNAME}
+
+kind_aipod:
+	@kind load docker-image ${AIPODFULLNAME}
+
+
 
 kind_gateway:
 	@kind load docker-image ${GATEWAYIMAGEFULLNAME}

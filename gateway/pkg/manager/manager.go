@@ -79,6 +79,13 @@ func LoadEPF(c *connection.Config) error {
 		config.Tunnel = 1
 	}
 
+	for x := range c.Pids {
+		err = tracker.objs.MapPids.Update(c.Pids[x], uint8(1), ebpf.UpdateAny)
+		if err != nil {
+			slog.Fatalf("Failed to update active pids map: %v", err)
+		}
+	}
+
 	err = tracker.objs.mirrorsMaps.MapConfig.Update(&key, &config, ebpf.UpdateAny)
 	if err != nil {
 		slog.Fatalf("Failed to update proxyMaps map: %v", err)
@@ -130,6 +137,7 @@ func Cleanup() {
 
 func Setup() (*connection.Config, error) {
 	var c connection.Config
+
 	flag.StringVar(&c.Address, "address", "127.0.0.1", "Address to bind to, can also be a hostname")
 	flag.StringVar(&c.ClusterAddress, "overrideAddress", "", "Address to force all traffic to")
 	flag.StringVar(&c.CgroupOverride, "cgroupPath", "/sys/fs/cgroup", "Path for cgroup")
@@ -142,6 +150,7 @@ func Setup() (*connection.Config, error) {
 	flag.Parse()
 
 	// Parse the Environment variables
+
 	_, exists := os.LookupEnv("KTLS")
 	if exists {
 		c.KTLS = true
@@ -189,7 +198,7 @@ func Setup() (*connection.Config, error) {
 	c.Address = i.String()
 
 	// Overwrite the podcidr
-	podCIDR, exists := os.LookupEnv("POD_CIDR")
+	podCIDR, exists := os.LookupEnv("PODCIDR")
 	if exists {
 		c.PodCIDR = podCIDR
 	}

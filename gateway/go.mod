@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/cilium/ebpf v0.19.0
 	github.com/docker/docker v28.3.3+incompatible
+	github.com/evilsocket/opensnitch/daemon v0.0.0-20251211223604-ede079fb9fac
 	github.com/gookit/slog v0.5.8
 	github.com/gopacket/gopacket v1.5.0
 	github.com/openai/openai-go v1.12.0
@@ -36,6 +37,8 @@ require (
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
+	github.com/vishvananda/netlink v1.3.0 // indirect
+	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	gitlab.com/go-extension/aes-ccm v0.0.0-20230221065045-e58665ef23c7 // indirect

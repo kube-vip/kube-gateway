@@ -14,6 +14,6 @@ RUN upx ./kube-gateway; cp ./kube-gateway /
 
 
 
-#FROM scratch
-#COPY --from=dev /src/gateway/kube-gateway /
+FROM scratch
+COPY --from=dev /src/gateway/kube-gateway /
 CMD ["/kube-gateway"]

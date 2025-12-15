@@ -32,25 +32,13 @@ int cg_connect4(struct bpf_sock_addr *ctx) {
   __u32 dst_addr = bpf_ntohl(ctx->user_ip4);
   __u32 destination = bpf_ntohl(dst_addr);
 
+  // Manage pod cidr subnet mask (todo: Add services)
   int mask = (-1) << (32 - conf->mask);
-  // bpf_printk("hex 0x%x 0x%x 0x%x", bpf_htonl(ctx->user_ip4), mask,
-  //            conf->network);
-  bpf_printk("outbound to %pI4", &destination);
 
   // If this packet is not part of the podCIDR range then return
   if ((bpf_htonl(ctx->user_ip4) & mask) != conf->network) {
     return 1;
   }
-  // bpf_printk("IP in bounds %pI4 %pI4 %pI4", &destination, &start, &end);
-
-  // bpf_printk("IP out of bounds %u %u %u", destination, start, end);
-  // bpf_printk("IP out of bounds %pI4 %pI4 %pI4", &destination, &start, &end);
-  // if (destination < conf->start_addr || destination > conf->end_addr) {
-
-  //   // bpf_printk("IP out of bounds %pI4 %pI4 %pI4", &destination, &start,
-  //   // &end);
-  //   return 1;
-  // }
 
   // This field contains the port number passed to the connect() syscall
   __u16 dst_port = bpf_ntohl(ctx->user_port) >> 16;
@@ -61,7 +49,8 @@ int cg_connect4(struct bpf_sock_addr *ctx) {
   if (conf->tunnel == 1) {
     // In tunnel mode we use the internal pid
     __u64 pid = (bpf_get_current_pid_tgid() >> 32);
-    bpf_printk("[%d vs %d] outgoing %pI4", conf->proxy_pid, pid, &destination);
+    bpf_printk("[proxy pid %d vs App pid%d] outgoing %pI4", conf->proxy_pid,
+               pid, &destination);
     if (pid == conf->proxy_pid)
       return 1;
   } else {
@@ -80,9 +69,14 @@ int cg_connect4(struct bpf_sock_addr *ctx) {
     // bpf_printk("[%d vs %d] incoming %pI4:%d", conf->proxy_pid, ns_pid,
     //            &destination, dst_port);
     //} else {
-    bpf_printk("[%d vs %d] outgoing %pI4", conf->proxy_pid, ns_pid,
-               &destination);
+    bpf_printk("[proxy pid %d vs App pid %d] outgoing %pI4", conf->proxy_pid,
+               ns_pid, &destination);
     //}
+    __u8 *pid = bpf_map_lookup_elem(&map_pids, &ns_pid);
+    if (!pid) {
+      bpf_printk("Pid %d isn't in this pod", ns_pid);
+      return 1;
+    }
 
     if (ns_pid == conf->proxy_pid)
       return 1;
@@ -213,7 +207,5 @@ int cg_sock_opt(struct bpf_sockopt *ctx) {
   }
   return 1;
 }
-
-
 
 char __LICENSE[] SEC("license") = "GPL";

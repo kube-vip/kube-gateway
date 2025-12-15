@@ -15,35 +15,23 @@ import (
 
 func (c *Config) Http_gateway(ingress, egress net.Conn) error {
 	// We need to create two loops for parsing what is being sent and what is being recieved
-
-	var recieverErr error
-	recieverErr = nil //can't remember if this is needed or not.. TODO: find someone cleverer than me
 	go func() {
 		for {
-			defer fmt.Println("errr")
-
 			reader := bufio.NewReader(ingress)
 			req, err := http.ReadRequest(reader) // the request is where we aim to do our parsing!
 			if err != nil {
+				if err == io.EOF {
+					return
+				}
 				slog.Error(err)
-				continue
+				return
 			}
 			// fmt.Println(req)
 			body, err := io.ReadAll(req.Body)
 
-			// // // Gross but will do for now
-			// bodyCopy, _ := req.GetBody()
-			// body := io.NopCloser(req.Body)
-			// if err != nil {
-			// 	slog.Error(err)
-			// 	continue
-			// }
 			chat := openai.ChatCompletionNewParams{}
-			// json.NewDecoder(body).Decode(chat)
 			err = json.Unmarshal(body, &chat)
-			// b, _ := json.MarshalIndent(chat, "", "   ")
-			// fmt.Println(string(b))
-			// Overwrite model
+
 			if c.Model != "" {
 				slog.Infof("Changing Model %s -> %s", chat.Model, c.Model)
 				chat.Model = c.Model
@@ -55,6 +43,9 @@ func (c *Config) Http_gateway(ingress, egress net.Conn) error {
 
 			if err != nil {
 				slog.Errorf("Incoming data read: %v", err)
+				if err == io.EOF {
+					return
+				}
 				return
 			}
 			err = req.Write(egress)
@@ -66,9 +57,7 @@ func (c *Config) Http_gateway(ingress, egress net.Conn) error {
 	}()
 
 	for {
-		if recieverErr != nil {
-			return recieverErr
-		}
+
 		reader := bufio.NewReader(egress)
 		req, err := http.ReadResponse(reader, nil) // problem here
 		if err != nil {

@@ -11,6 +11,10 @@ import (
 
 func main() {
 	slog.Info("starting the kube-gateway 🐝")
+	c, err := manager.Setup()
+	if err != nil {
+		slog.Fatal(err)
+	}
 
 	slog.Info("Finding existing network sessions")
 	n, err := net.Connections("tcp")
@@ -19,26 +23,24 @@ func main() {
 	} else {
 		for x := range n {
 			fmt.Printf("%s %s\n", n[x].Laddr, n[x].Raddr)
-			x := manager.Tuple{SourceIP: n[x].Laddr.IP, SourcePort: n[x].Laddr.Port, DestIP: n[x].Raddr.IP, DestPort: n[x].Raddr.Port}
-			go func() {
-				err = x.Run("eth0", true, 3, 20)
-			}()
+			if n[x].Laddr.IP != "::" || n[x].Raddr.IP != "::" {
+				x := manager.Tuple{SourceIP: n[x].Laddr.IP, SourcePort: n[x].Laddr.Port, DestIP: n[x].Raddr.IP, DestPort: n[x].Raddr.Port}
+				go func() {
+					err = x.Run("eth0", true, 3, 20)
+				}()
 
-			if err != nil {
-				slog.Errorf("Unable to kill existing TCP sessions: %v", err)
+				if err != nil {
+					slog.Errorf("Unable to kill existing TCP sessions: %v", err)
+				}
 			}
 		}
 	}
-	//https://github.com/Colstuwjx/tcpkill/blob/main/main.go
 	slog.Info("finding running processes 🤖")
 	p, err := process.Processes()
 	for x := range p {
 		n, _ := p[x].Name()
 		fmt.Printf("Process: %s, pid: %d\n", n, p[x].Pid)
-	}
-	c, err := manager.Setup()
-	if err != nil {
-		slog.Fatal(err)
+		c.Pids = append(c.Pids, uint32(p[x].Pid))
 	}
 	err = manager.LoadEPF(c)
 	if err != nil {

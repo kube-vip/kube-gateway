@@ -87,6 +87,7 @@ type mirrorsProgramSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type mirrorsMapSpecs struct {
 	MapConfig *ebpf.MapSpec `ebpf:"map_config"`
+	MapPids   *ebpf.MapSpec `ebpf:"map_pids"`
 	MapPorts  *ebpf.MapSpec `ebpf:"map_ports"`
 	MapSocks  *ebpf.MapSpec `ebpf:"map_socks"`
 }
@@ -118,6 +119,7 @@ func (o *mirrorsObjects) Close() error {
 // It can be passed to loadMirrorsObjects or ebpf.CollectionSpec.LoadAndAssign.
 type mirrorsMaps struct {
 	MapConfig *ebpf.Map `ebpf:"map_config"`
+	MapPids   *ebpf.Map `ebpf:"map_pids"`
 	MapPorts  *ebpf.Map `ebpf:"map_ports"`
 	MapSocks  *ebpf.Map `ebpf:"map_socks"`
 }
@@ -125,6 +127,7 @@ type mirrorsMaps struct {
 func (m *mirrorsMaps) Close() error {
 	return _MirrorsClose(
 		m.MapConfig,
+		m.MapPids,
 		m.MapPorts,
 		m.MapSocks,
 	)

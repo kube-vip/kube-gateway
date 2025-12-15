@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	debug = "kube-gateway.io/debug"
+	debug   = "kube-gateway.io/debug"
+	podcidr = "kube-gateway.io/podcidr"
 
 	endpoint = "kube-gateway.io/endpoint"
 
@@ -46,13 +47,14 @@ func main() {
 	ca := flag.Bool("ca", false, "Create a CA")
 	certName := flag.String("cert", "", "Create a certificate from the CA")
 	certCollection.folder = flag.String("certFolder", "", "Create a certificate from the CA")
+	podcidr := flag.String("podcidr", "10.0.0.0/16", "Set the PodCIDR for capturing traffic")
 
 	certIP := flag.String("ip", "192.168.0.1", "Create a certificate from the CA")
 	certSecret := flag.Bool("load", false, "Create a secret in Kubernetes with the certificate")
 	loadCA := flag.Bool("loadca", false, "Create a secret in Kubernetes with the certificate")
 	watch := flag.Bool("watch", false, "Watch Kubernetes for pods being created and create certs")
 	image := flag.String("image", "thebsdbox/kube-gateway:v1", "The image to be used as the gateway")
-
+	imagePull := flag.Bool("forcePull", false, "ensure that the gatewway image is always pulled")
 	flag.Parse()
 
 	if *ca {
@@ -133,7 +135,7 @@ func main() {
 		if err != nil {
 			slog.PanicErr(err)
 		}
-		certCollection.watcher(c, image)
+		certCollection.watcher(c, image, imagePull, podcidr)
 	}
 
 }
@@ -169,4 +171,6 @@ type informerHandler struct {
 	clientset *kubernetes.Clientset
 	c         *certs
 	image     string
+	imagePull bool
+	podCIDR   string
 }
