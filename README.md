@@ -1,4 +1,7 @@
 # kube-gateway
+
+![](https://github.com/kube-vip/kube-vip/raw/main/kube-vip.png)
+
 A transparent gateway for Kubernetes pods
 
 **Note** this is more of a proof of concept at this stage, so feel free to take for a test drive and give feedback. Additionally it uses ephemeral containers to attach the proxy to your workloads and due to a bug in previous releases of Kubernetes only works from version v1.33 onwards. 
@@ -18,17 +21,21 @@ Well, they're pretty cool and they are a good way to attach things to an already
 - `pkg` contains shared code
 - `watcher` contains the pod watcher code
 
-## Create a cluster (MUST be v1.33+)
+
+## Encryption 🔐
+
+### Create a cluster (MUST be v1.33+)
 
 `make kind`
 
-## Create the CA (Certificate Authority)
+### Create the CA (Certificate Authority)
 
 The following commands will generate the certificate authority
 
-`openssl genrsa -out ca.key 4096`
-`openssl req -new -x509 -days 3650 -key ca.key -out ca.crt`
-`kubectl create secret generic watcher --from-file=ca-key=ca.key --from-file=ca-cert=ca.crt`
+```openssl genrsa -out ca.key 4096
+openssl req -new -x509 -days 3650 -key ca.key -out ca.crt
+kubectl create secret generic watcher --from-file=ca-key=ca.key --from-file=ca-cert=ca.crt
+```
 
 or you can use the `watcher` to create the `secret` that has the CA certs:
 ```
@@ -37,13 +44,13 @@ go run main.go -ca
 go run main.go -loadca
 ```
 
-## Create the watcher!
+### Create the watcher!
 
 The watcher will watch for pods that have an IP address **and** the correct annotation (kube-gateway.io=true).
 
 `kubectl apply -f ./watcher/deployment.yaml`
 
-## Apply a workload (demo)
+### Apply a workload (demo)
 
 Start the demo workload (unencrypted)!
 
@@ -51,14 +58,14 @@ Start the demo workload (unencrypted)!
 
 You can use tcpdump/wireshark to watch the traffic unencrypted flying back and forth.
 
-## Encryption 🔐
 
-### To use kTLS (in-kernel TLS)
+#### To use kTLS (in-kernel TLS)
 
 This has to be done **first** for kTLS offload to be enabled.
+
 `kubectl annotate pod <pod name> kube-gateway.io/ktls="true"`
 
-### Enable Encryption between pods
+#### Enable Encryption between pods
 
 This will apply the gateway to pod-01:
 `kubectl annotate pod pod-01 kube-gateway.io/encrypt="true"`
@@ -70,8 +77,32 @@ At which point all traffic will be encrypted end-to-end 🤩
 
 ## AI 🤖
 
+### Create a cluster (MUST be v1.33+)
+
+`make kind`
+
 Apply the gateway to the pod with the following:
 `kubectl annotate pod pod-01 kube-gateway.io/ai="true"`
+
+### Deploy an example
+
+We're going to deploy ollama with the `llama3.2` model.
+
+```
+kubectl apply -f ./AI/everything.yaml
+```
+
+Then we're going to deploy our own AI client:
+
+```
+kubectl apply -f ./AI/aiClient/pod.yaml
+```
+
+We can deploy a second too (optional), this one uses python but is another good example of manipulating multiple workloads:
+
+```
+kubectl apply -f ./AI/aiClient-py/pod.yaml
+```
 
 ### Override example (model type)
 Make sure that the model has been pulled into ollama first :-) 
@@ -80,7 +111,7 @@ Make sure that the model has been pulled into ollama first :-)
 curl -X POST http://172.18.0.4:30007/api/pull -H 'Content-Type: application/json' -d '{"name": "gemma2:2b"}'
 ```
 
-`kubectl annotate pod pod-01 kube-gateway.io/ai-model="gemma2:2b"`
+`kubectl annotate pod aipod kube-gateway.io/ai-model="gemma2:2b"`
 
 ## Debugging
 
