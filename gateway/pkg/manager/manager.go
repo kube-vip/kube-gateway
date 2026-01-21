@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"gateway/pkg/connection"
 	"gateway/pkg/gateway"
+	"gateway/pkg/watcher"
 	"io"
 	"net"
 	"os"
@@ -171,7 +172,7 @@ func Setup() (*connection.Config, error) {
 		c.AI = true
 	}
 
-	_, exists = os.LookupEnv("FLUSH")
+	_, exists = os.LookupEnv("NETFLUSH")
 	if exists {
 		c.Flush = true
 	}
@@ -203,9 +204,33 @@ func Setup() (*connection.Config, error) {
 		c.PodCIDR = podCIDR
 	}
 
-	c.Gateway = &gateway.Config{
+	c.Gateway = &gateway.AIConfig{
 		Model: os.Getenv("MODEL"),
 	}
+
+	// replacer := os.Getenv("MESSAGEREPLACER")
+	// if replacer != "" {
+	// 	pair := strings.Split(replacer, " ")
+	// 	for x := range pair {
+	// 		kv := strings.Split(pair[x], "//")
+	// 		if len(kv) != 2 {
+	// 			break
+	// 		}
+	// 		// type x struct {
+	// 		// 	Orig          string
+	// 		// 	New           string
+	// 		// 	CaseSensitive bool
+	// 		// 	PromptType    string
+	// 		// }
+	// 		// x := c.Gateway.PromptReplace
+	// 		// x.
+	// 		// x = kv[0]
+	// 		// x.New = kv[1]
+	// 		//c.Gateway.PromptReplace[0].New
+	// 		c.Gateway.PromptReplace = append(c.Gateway.PromptReplace, {Orig:""}...)
+	// 		//c.Gateway.MessageReplacer = append(c.Gateway.MessageReplacer, kv...)
+	// 	}
+	// }
 
 	return &c, nil
 }
@@ -214,7 +239,16 @@ func Setup() (*connection.Config, error) {
 func Start(c *connection.Config) error {
 
 	slog.Info("Starting kube-gateway 🐙")
-	slog.Info("Features", "Encryption", c.Encrypt, "kTLS", c.KTLS, "AI", c.AI, "NETFLUSH", c.Flush)
+	slog.Info("Features", "Encryption", c.Encrypt, "kTLS", c.KTLS, "AI", c.AI, "NETFLUSH", c.Flush, "TOKEN OVERRIDE", len(os.Getenv("KUBE-GATEWAY-TOKEN")) != 0)
+
+	go func() {
+		if len(c.Pids) != 0 {
+			w := watcher.NewWatcher(int(c.Pids[0]), os.Getenv("KUBE-GATEWAY-TOKEN"))
+			err := w.Start(c.Gateway)
+			slog.Error("Unable to create watcher", err)
+		}
+
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -236,7 +270,6 @@ func Start(c *connection.Config) error {
 	// if err != nil {
 	// 	slog.Error(err)
 	// Attempt to get from environment secrets
-
 	if c.Encrypt {
 		c.Certificates, err = connection.GetEnvCerts()
 		if err != nil {

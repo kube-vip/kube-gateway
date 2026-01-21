@@ -1,0 +1,18 @@
+{
+    "model": "llama3.1",
+    "maxTokens": "50",
+    "promptReplace": [
+        {
+            "orig": "giraffe",
+            "new": "horse",
+            "caseSensitive": true,
+            "promptType": "user"
+        },
+        {
+            "orig": "joke",
+            "new": "fact",
+            "caseSensitive": false,
+            "promptType": "user"
+        }
+    ]
+}

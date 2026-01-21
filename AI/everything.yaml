@@ -43,7 +43,7 @@ spec:
                 command:
                   - "/bin/sh"
                   - "-c"
-                  - 'curl -X POST http://localhost:11434/api/pull -H ''Content-Type: application/json'' -d ''{"name": "llama3.2"}'''
+                  - 'curl -X POST http://localhost:11434/api/pull -H ''Content-Type: application/json'' -d ''{"name": "llama3.2:1b"}'''
           resources:
             limits:
               memory: 50Mi

@@ -73,6 +73,10 @@ func main() {
 				time.Sleep(time.Minute)
 				log.Fatalf("Failed to generate: %v", err)
 			}
+			log.Println("------------------------------------------------------------")
+			log.Printf("The model: %s, tokens: prompt->%d  completion->%d\n", resp.Model, resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
+			log.Println("------------------------------------------------------------")
+
 			log.Println("Response:", resp.Choices[0].Message.Content)
 		}
 	}()
@@ -92,7 +96,7 @@ func FormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	message := r.FormValue("message")
-
+	fmt.Printf("Web query %s\n", message)
 	fmt.Fprintf(w, "Your query: %s\n", message)
 	resp, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
 		Model: "llama3.2",

@@ -7,8 +7,6 @@ client = OpenAI(
     base_url='http://ollama1.ollama:11434/v1',
 )
 
-
-
 while True:
     time.sleep(8)
     

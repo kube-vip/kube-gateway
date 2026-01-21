@@ -238,6 +238,7 @@ func (c *certs) loadSecret(name string, clientSet *kubernetes.Clientset) error {
 	secretMap["SMESH-CA"] = c.cacert
 	secretMap["SMESH-CERT"] = c.cert
 	secretMap["SMESH-KEY"] = c.key
+	secretMap["KUBE-GATEWAY-TOKEN"] = c.token
 
 	secret := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
@@ -245,7 +246,7 @@ func (c *certs) loadSecret(name string, clientSet *kubernetes.Clientset) error {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name + "-smesh",
+			Name: "kube-gateway-" + name,
 		},
 		Data: secretMap,
 		Type: v1.SecretTypeOpaque,

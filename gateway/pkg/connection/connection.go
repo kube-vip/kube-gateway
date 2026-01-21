@@ -24,20 +24,21 @@ type Config struct {
 
 	PodCIDR      string
 	Certificates *Certs
+	Token        []byte
 
 	Socks *ebpf.Map
 
 	ProxyFunc func(string) string
 
 	// Environment Variables
-	Tunnel  bool   // Running as a tunnel compared to a sidecar
-	Encrypt bool   // Load certificates as traffic is encrypted
-	KTLS    bool   // Enable Kernel TLS
-	Flush   bool   // Find existing network connections and terminate them
-	AI      bool   // Workload is going to be AI
+	Tunnel  bool // Running as a tunnel compared to a sidecar
+	Encrypt bool // Load certificates as traffic is encrypted
+	KTLS    bool // Enable Kernel TLS
+	Flush   bool // Find existing network connections and terminate them
+	AI      bool // Workload is going to be AI
 
 	// Gateway
-	Gateway *gateway.Config
+	Gateway *gateway.AIConfig
 
 	Pids []uint32
 }
@@ -79,7 +80,7 @@ func (c *Config) StartListeners(listener net.Listener, internal bool) {
 						if c.AI {
 							go c.internalProxy(conn, c.Gateway.Http_gateway)
 						} else {
-							go c.internalProxy(conn, c.Gateway.Copy_gateway)
+							go c.internalProxy(conn, gateway.Copy_gateway)
 						}
 					}
 				} else {

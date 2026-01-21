@@ -18,6 +18,15 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// Actual watcher code
+type informerHandler struct {
+	clientset *kubernetes.Clientset
+	c         *certs
+	image     string
+	imagePull bool
+	podCIDR   string
+}
+
 func (c *certs) watcher(clientSet *kubernetes.Clientset, image *string, imagePull *bool, podCidr *string) error {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
@@ -95,7 +104,7 @@ func (i *informerHandler) OnUpdate(oldObj, newObj interface{}) {
 
 func (i *informerHandler) OnDelete(obj interface{}) {
 	p := obj.(*v1.Pod)
-	name := fmt.Sprintf("%s-smesh", p.Name)
+	name := fmt.Sprintf("kube-gateway-%s", p.Name)
 	err := i.clientset.CoreV1().Secrets(p.Namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
 		slog.Errorf("Error deleting secret %v", err)
@@ -111,7 +120,7 @@ func (i *informerHandler) OnAdd(obj interface{}, b bool) {
 func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string, forcePull bool) *v1.Pod {
 
 	privileged := true
-	secret := pod.Name + "-smesh"
+	secret := "kube-gateway-" + pod.Name
 	ec := &v1.EphemeralContainer{
 		TargetContainerName: pod.Spec.Containers[0].Name,
 		EphemeralContainerCommon: v1.EphemeralContainerCommon{
@@ -128,6 +137,8 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string, forcePu
 		ec.EphemeralContainerCommon.ImagePullPolicy = v1.PullAlways
 	}
 
+	i.c.token = checkSecretExists(i.clientset, pod.Namespace)
+
 	// Check for encyption annotation
 	if pod.Annotations[encryptGateway] != "" {
 		// Ensure the kube-gateway enables encryption
@@ -136,25 +147,25 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string, forcePu
 		// Create certificates and then a Kubernetes secret
 		i.c.createCertificate(pod.Name, pod.Status.PodIP)
 
-		err := i.c.loadSecret(pod.Name, i.clientset)
-		if err != nil {
-			slog.Error(err)
-		}
-		ec.EnvFrom = append(ec.EnvFrom, v1.EnvFromSource{
-			SecretRef: &v1.SecretEnvSource{
-				LocalObjectReference: v1.LocalObjectReference{
-					Name: secret,
-				},
-				Optional: nil,
-			},
-		})
-
 		// If we're wanting to offload TLS to the kernel
 		if pod.Annotations[enableKTLS] != "" {
 			ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "KTLS", Value: "TRUE"})
 		}
 
 	}
+	// Create the secret for the pod
+	err := i.c.loadSecret(pod.Name, i.clientset)
+	if err != nil {
+		slog.Error(err)
+	}
+	ec.EnvFrom = append(ec.EnvFrom, v1.EnvFromSource{
+		SecretRef: &v1.SecretEnvSource{
+			LocalObjectReference: v1.LocalObjectReference{
+				Name: secret,
+			},
+			Optional: nil,
+		},
+	})
 
 	// Enable AI gateway
 	if pod.Annotations[aiGateway] != "" {
@@ -180,6 +191,11 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string, forcePu
 	// Enable the debug mode
 	if pod.Annotations[debug] != "" {
 		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "DEBUG", Value: "TRUE"})
+	}
+
+	// Enable netflush on startup
+	if pod.Annotations[netflush] != "" {
+		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "NETFLUSH", Value: "TRUE"})
 	}
 
 	// Set the pod to have an enabled annotation

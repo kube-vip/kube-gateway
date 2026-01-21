@@ -1,8 +1,13 @@
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: kube-gateway
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: watcher
-#  namespace: kube-system
+  name: kube-watcher
+  namespace: kube-gateway
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -19,7 +24,16 @@ rules:
     verbs: ["patch", "update"]
   - apiGroups: [""] # "" indicates the core API group
     resources: ["secrets"]
-    verbs: ["create", "delete"]
+    verbs: ["create", "list", "delete", "get"]
+  - apiGroups: [""] # "" indicates the core API group
+    resources: ["serviceaccounts", "serviceaccounts/token"]
+    verbs: ["create", "get", "delete"]
+  - apiGroups: [""] # "" indicates the core API group
+    resources: ["configmaps"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterrolebindings"]
+    verbs: ["create"]
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
@@ -31,20 +45,51 @@ roleRef:
   name: system:watcher-role
 subjects:
   - kind: ServiceAccount
-    name: watcher
-    namespace: default
+    name: kube-watcher
+    namespace: kube-gateway
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-gateway
+  namespace: kube-gateway
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  name: system:kube-gateway-role
+rules:
+  - apiGroups: [""] # "" indicates the core API group
+    resources: ["configmaps"]
+    verbs: ["get", "watch", "list"]
+#---
+#apiVersion: rbac.authorization.k8s.io/v1
+##kind: ClusterRoleBinding
+#metadata:
+#  name: system:kube-gateway-binding
+#roleRef:
+#  apiGroup: rbac.authorization.k8s.io
+#  kind: ClusterRole
+#  name: system:kube-gateway-role
+#subjects:
+#  - kind: ServiceAccount
+#    name: kube-gateway
+#    namespace: default
 ---
 apiVersion: v1
 kind: Pod
 metadata:
   name: kube-cert-watcher
+  namespace: kube-gateway
 spec:
-  serviceAccountName: watcher
+  serviceAccountName: kube-watcher
   containers:
     - name: kube-cert-watcher
       image: thebsdbox/watcher:v1
       imagePullPolicy: IfNotPresent
-      command: ["/kube-cert-watcher", "-watch"]
+      command: ["/kube-cert-watcher", "-watch", "-forcePull"]
       resources:
         requests:
           memory: "64Mi"

@@ -22,15 +22,17 @@ func main() {
 		slog.Errorf("Unable to find existing connections: %s", err)
 	} else {
 		for x := range n {
-			fmt.Printf("%s %s\n", n[x].Laddr, n[x].Raddr)
-			if n[x].Laddr.IP != "::" || n[x].Raddr.IP != "::" {
-				x := manager.Tuple{SourceIP: n[x].Laddr.IP, SourcePort: n[x].Laddr.Port, DestIP: n[x].Raddr.IP, DestPort: n[x].Raddr.Port}
-				go func() {
-					err = x.Run("eth0", true, 3, 20)
-				}()
+			fmt.Printf("Flushing: %t, source: %s / destination:%s\n", c.Flush, n[x].Laddr, n[x].Raddr)
+			if c.Flush {
+				if n[x].Laddr.IP != "::" || n[x].Raddr.IP != "::" {
+					x := manager.Tuple{SourceIP: n[x].Laddr.IP, SourcePort: n[x].Laddr.Port, DestIP: n[x].Raddr.IP, DestPort: n[x].Raddr.Port}
+					go func() {
+						err = x.Run("eth0", true, 3, 20)
+					}()
 
-				if err != nil {
-					slog.Errorf("Unable to kill existing TCP sessions: %v", err)
+					if err != nil {
+						slog.Errorf("Unable to kill existing TCP sessions: %v", err)
+					}
 				}
 			}
 		}
@@ -46,6 +48,7 @@ func main() {
 	if err != nil {
 		slog.Fatal(err)
 	}
+
 	err = manager.Start(c)
 	if err != nil {
 		slog.Fatal(err)

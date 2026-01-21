@@ -12,8 +12,8 @@ spec:
         - containerPort: 8000
       imagePullPolicy: IfNotPresent
       env:
-        - name: MODEL
-          value: "llama3.2"
+        - name: model
+          value: "llama3.2:1b"
         - name: TOKEN
           value: ""
       resources:

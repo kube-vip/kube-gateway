@@ -1,9 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os/user"
+
+	authenticationv1 "k8s.io/api/authentication/v1"
+	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -12,18 +18,28 @@ import (
 	"github.com/gookit/slog"
 )
 
+// Annotations that are applied to a pod, that the watcher will translate to an environment variable for the kube-gateway pod
 const (
+	// Configuration
 	debug   = "kube-gateway.io/debug"
 	podcidr = "kube-gateway.io/podcidr"
 
+	// Be a simple endpoint to a gateway
 	endpoint = "kube-gateway.io/endpoint"
 
-	enabled        = "kube-gateway.io/enabled"
+	// Encryption annotations
 	encryptGateway = "kube-gateway.io/encrypt"
 	enableKTLS     = "kube-gateway.io/ktls"
 
+	// AI annotations
 	aiGateway = "kube-gateway.io/ai"
 	aiModel   = "kube-gateway.io/ai-model"
+
+	// Network flush annotation
+	netflush = "kube-gateway.io/netflush"
+
+	// This should be set once the gateway has been enabled on a pod
+	enabled = "kube-gateway.io/enabled"
 )
 
 type certs struct {
@@ -31,6 +47,7 @@ type certs struct {
 	cakey  []byte
 	key    []byte
 	cert   []byte
+	token  []byte
 	folder *string
 }
 
@@ -44,6 +61,7 @@ func main() {
 	var certCollection certs
 	slog.Info("Watcher, starting")
 	slog.Info("Starting Certicate creation 🔏")
+
 	ca := flag.Bool("ca", false, "Create a CA")
 	certName := flag.String("cert", "", "Create a certificate from the CA")
 	certCollection.folder = flag.String("certFolder", "", "Create a certificate from the CA")
@@ -55,6 +73,7 @@ func main() {
 	watch := flag.Bool("watch", false, "Watch Kubernetes for pods being created and create certs")
 	image := flag.String("image", "thebsdbox/kube-gateway:v1", "The image to be used as the gateway")
 	imagePull := flag.Bool("forcePull", false, "ensure that the gatewway image is always pulled")
+
 	flag.Parse()
 
 	if *ca {
@@ -140,6 +159,76 @@ func main() {
 
 }
 
+func checkSecretExists(c *kubernetes.Clientset, namespace string) []byte {
+	var s *v1.Secret
+	var err error
+	s, err = c.CoreV1().Secrets(namespace).Get(context.TODO(), "kube-gateway", metav1.GetOptions{})
+
+	if err != nil {
+		slog.Errorf("finding secret %v", err)
+
+		// lets create the correct settings
+		account := v1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "kube-gateway", Namespace: namespace}}
+
+		_, err = c.CoreV1().ServiceAccounts(namespace).Create(context.TODO(), &account, metav1.CreateOptions{})
+		if err != nil {
+			slog.Errorf("creating service account %v", err)
+		}
+		clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+			TypeMeta: metav1.TypeMeta{APIVersion: rbacv1.SchemeGroupVersion.String(), Kind: "ClusterRoleBinding"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "system:kube-gateway-binding",
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "ClusterRole",
+				Name:     "system:kube-gateway-role",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      "kube-gateway",
+					Namespace: namespace,
+				},
+			},
+		}
+		_, err = c.RbacV1().ClusterRoleBindings().Create(context.TODO(), clusterRoleBinding, metav1.CreateOptions{})
+		if err != nil {
+			slog.Errorf("creating role binding %v", err)
+		}
+		expirationSeconds := int64(60 * 60 * 24 * 365)
+
+		t, err := c.CoreV1().ServiceAccounts(namespace).CreateToken(context.TODO(), "kube-gateway", &authenticationv1.TokenRequest{Spec: authenticationv1.TokenRequestSpec{ExpirationSeconds: &expirationSeconds}}, metav1.CreateOptions{})
+		if err != nil {
+			slog.Errorf("creating secret %v", err)
+		}
+		secretMap := make(map[string][]byte)
+
+		secretMap["KUBE-GATEWAY-TOKEN"] = []byte(t.Status.Token)
+		secret := v1.Secret{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Secret",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "kube-gateway",
+			},
+			Data: secretMap,
+			Type: v1.SecretTypeOpaque,
+		}
+
+		s, err = c.CoreV1().Secrets(namespace).Create(context.TODO(), &secret, metav1.CreateOptions{})
+		if err != nil {
+			slog.Errorf("unable to create secrets %v", err)
+		}
+		slog.Info(fmt.Sprintf("Created Secret 🔐 [%s]", s.Name))
+	} else {
+		slog.Info("Existing service account exists")
+	}
+
+	return s.Data["KUBE-GATEWAY-TOKEN"]
+}
+
 func client(kubeconfigPath string) (*kubernetes.Clientset, error) {
 	var kubeconfig *rest.Config
 
@@ -163,14 +252,4 @@ func client(kubeconfigPath string) (*kubernetes.Clientset, error) {
 		return nil, fmt.Errorf("creating the kubernetes client set - %s", err)
 	}
 	return clientSet, nil
-}
-
-// Actual watcher code
-
-type informerHandler struct {
-	clientset *kubernetes.Clientset
-	c         *certs
-	image     string
-	imagePull bool
-	podCIDR   string
 }
