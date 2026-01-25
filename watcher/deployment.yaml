@@ -89,7 +89,14 @@ spec:
     - name: kube-cert-watcher
       image: thebsdbox/watcher:v1
       imagePullPolicy: IfNotPresent
-      command: ["/kube-cert-watcher", "-watch", "-forcePull"]
+      command:
+        [
+          "/kube-cert-watcher",
+          "-watch",
+          "-forcePull",
+          "-podcidr",
+          "10.244.0.0/16",
+        ]
       resources:
         requests:
           memory: "64Mi"

@@ -216,7 +216,7 @@ func (c *certs) createCertificate(name, ip string) {
 
 }
 
-func (c *certs) loadSecret(name string, clientSet *kubernetes.Clientset) error {
+func (c *certs) loadSecret(name, namespace string, clientSet *kubernetes.Clientset) error {
 
 	// certificate := fmt.Sprint(name + ".crt")
 	// key := fmt.Sprint(name + ".key")
@@ -252,7 +252,7 @@ func (c *certs) loadSecret(name string, clientSet *kubernetes.Clientset) error {
 		Type: v1.SecretTypeOpaque,
 	}
 
-	s, err := clientSet.CoreV1().Secrets(v1.NamespaceDefault).Create(context.TODO(), &secret, metav1.CreateOptions{})
+	s, err := clientSet.CoreV1().Secrets(namespace).Create(context.TODO(), &secret, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to create secrets %v", err)
 	}

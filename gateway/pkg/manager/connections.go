@@ -126,12 +126,12 @@ func (t *Tuple) Run(iface string, prom bool, count, timeout int) error {
 
 			if (ip.SrcIP.String() == t.SourceIP && tcp.SrcPort == layers.TCPPort(t.SourcePort)) &&
 				(ip.DstIP.String() == t.DestIP && tcp.DstPort == layers.TCPPort(t.DestPort)) {
-				fmt.Printf("flushing ingress: %s %d %s %d == %s %d %s %d\n", ip.SrcIP.String(), tcp.SrcPort, ip.DstIP.String(), tcp.DstPort, t.SourceIP, t.SourcePort, t.DestIP, t.DestPort)
+				fmt.Printf("flushing ingress: %s:%d %s:%d == %s:%d %s:%d\n", ip.SrcIP.String(), tcp.SrcPort, ip.DstIP.String(), tcp.DstPort, t.SourceIP, t.SourcePort, t.DestIP, t.DestPort)
 				ingress = true
 			}
 			if (ip.DstIP.String() == t.SourceIP && tcp.DstPort == layers.TCPPort(t.SourcePort)) &&
 				(ip.SrcIP.String() == t.DestIP && tcp.SrcPort == layers.TCPPort(t.DestPort)) {
-				fmt.Printf("flushing egress: %s %d %s %d == %s %d %s %d\n", ip.SrcIP.String(), tcp.SrcPort, ip.DstIP.String(), tcp.DstPort, t.SourceIP, t.SourcePort, t.DestIP, t.DestPort)
+				fmt.Printf("flushing egress: %s:%d %s:%d == %s:%d %s:%d\n", ip.SrcIP.String(), tcp.SrcPort, ip.DstIP.String(), tcp.DstPort, t.SourceIP, t.SourcePort, t.DestIP, t.DestPort)
 				egress = true
 			}
 

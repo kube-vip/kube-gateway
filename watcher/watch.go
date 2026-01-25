@@ -154,7 +154,7 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string, forcePu
 
 	}
 	// Create the secret for the pod
-	err := i.c.loadSecret(pod.Name, i.clientset)
+	err := i.c.loadSecret(pod.Name, pod.Namespace, i.clientset)
 	if err != nil {
 		slog.Error(err)
 	}
@@ -166,6 +166,11 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string, forcePu
 			Optional: nil,
 		},
 	})
+
+	// Enable the endpoint mode
+	if pod.Annotations[endpoint] != "" {
+		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "ENDPOINT", Value: "TRUE"})
+	}
 
 	// Enable AI gateway
 	if pod.Annotations[aiGateway] != "" {
@@ -188,11 +193,6 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string, forcePu
 		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "DEBUG", Value: "TRUE"})
 	}
 
-	// Enable the debug mode
-	if pod.Annotations[debug] != "" {
-		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "DEBUG", Value: "TRUE"})
-	}
-
 	// Enable netflush on startup
 	if pod.Annotations[netflush] != "" {
 		ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "NETFLUSH", Value: "TRUE"})
@@ -200,6 +200,10 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string, forcePu
 
 	// Set the pod to have an enabled annotation
 	pod.Annotations[enabled] = "true"
+
+	// Add name & namespace as an environment variable to the pod
+	ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "POD_NAME", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.name"}}})
+	ec.EphemeralContainerCommon.Env = append(ec.EphemeralContainerCommon.Env, v1.EnvVar{Name: "POD_NAMESPACE", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}})
 
 	copied := pod.DeepCopy()
 	copied.Spec.EphemeralContainers = append(copied.Spec.EphemeralContainers, *ec)

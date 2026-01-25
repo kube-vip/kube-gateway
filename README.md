@@ -113,6 +113,8 @@ curl -X POST http://172.18.0.4:30007/api/pull -H 'Content-Type: application/json
 
 `kubectl annotate pod aipod kube-gateway.io/ai-model="gemma2:2b"`
 
+kubectl create configmap <pod>-kube-gateway --from-file=config=./path.json
+
 ## Debugging
 
 You can see the logs of the gateway with the following: 

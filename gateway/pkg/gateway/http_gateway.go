@@ -8,13 +8,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/gookit/slog"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 )
 
-func (c *AIConfig) Http_gateway(ingress, egress net.Conn) error {
+func (c *AITransaction) Http_gateway(ingress, egress net.Conn) error {
 	// We need to create two loops for parsing what is being sent and what is being recieved
 	go func() {
 		for {
@@ -27,30 +28,66 @@ func (c *AIConfig) Http_gateway(ingress, egress net.Conn) error {
 				slog.Error(err)
 				return
 			}
-			// fmt.Println(req)
+			//  fmt.Println(req)
 			body, err := io.ReadAll(req.Body)
 
 			chat := openai.ChatCompletionNewParams{}
 			err = json.Unmarshal(body, &chat)
 
-			if c.Model != "" {
-				slog.Infof("Changing Model %s -> %s", chat.Model, c.Model)
-				chat.Model = c.Model
+			if len(c.Request.ModelReplace) != 0 {
+				for x := range c.Request.ModelReplace {
+					if chat.Model == c.Request.ModelReplace[x].Orig {
+						slog.Infof("Changing Model %s -> %s", chat.Model, c.Request.ModelReplace[x].New)
+						chat.Model = c.Request.ModelReplace[x].New
+					}
+				}
 			}
-			debugMessages(chat.Messages)
-			//if len(c.MessageReplacer) != 0 {
-			//	replacer := strings.NewReplacer(c.MessageReplacer...)
-			// for x := range chat.Messages {
-			// 	// y :=
-			// 	// unknown := y.String()
-			// 	if chat.Messages[x].OfUser != nil {
-			// 		if chat.Messages[x].OfUser.Content. {
 
-			// 		}
-			// 	}
-			// }
-			//slog.Infof("Changing Model %s -> %s", chat.Mec.Model)
-			//}
+			for x := range chat.Messages {
+				role := "unknown"
+				content := ""
+
+				switch {
+				case chat.Messages[x].OfUser != nil:
+
+					role = "user"
+					if !param.IsOmitted(chat.Messages[x].OfUser.Content.OfString) {
+						content = chat.Messages[x].OfUser.Content.OfString.Value
+						if len(c.Request.UserPromptReplace) != 0 {
+							for y := range c.Request.UserPromptReplace {
+								content = strings.ReplaceAll(content, c.Request.UserPromptReplace[y].Orig, c.Request.UserPromptReplace[y].New)
+							}
+							chat.Messages[x].OfUser.Content.OfString.Value = content // swap the modified prompt
+						}
+					}
+				case chat.Messages[x].OfAssistant != nil:
+					role = "assistant"
+					if !param.IsOmitted(chat.Messages[x].OfAssistant.Content.OfString) {
+						content = chat.Messages[x].OfAssistant.Content.OfString.Value
+					}
+					// Print tool calls if they exist
+					if len(chat.Messages[x].OfAssistant.ToolCalls) > 0 {
+						content += "\nTool Calls:"
+						for _, toolCall := range chat.Messages[x].OfAssistant.ToolCalls {
+							content += fmt.Sprintf("\n- Function: %s", toolCall.Function.Name)
+							content += fmt.Sprintf("\n  Arguments: %s", toolCall.Function.Arguments)
+						}
+					}
+				case chat.Messages[x].OfDeveloper != nil:
+					role = "developer"
+					if !param.IsOmitted(chat.Messages[x].OfDeveloper.Content.OfString) {
+						content = chat.Messages[x].OfDeveloper.Content.OfString.Value
+					}
+				case chat.Messages[x].OfTool != nil:
+					role = "tool"
+					if !param.IsOmitted(chat.Messages[x].OfTool.Content.OfString) {
+						content = chat.Messages[x].OfTool.Content.OfString.Value
+					}
+				}
+
+				fmt.Printf("Role: %s\nContent: %s\n\n", role, content)
+			}
+
 			newBody, _ := json.Marshal(chat)
 			//Update header
 			req.ContentLength = int64(len(newBody))
@@ -96,41 +133,5 @@ reliable depending on what model you’re using.
 */
 
 func debugMessages(Messages []openai.ChatCompletionMessageParamUnion) {
-	for _, msg := range Messages {
-		role := "unknown"
-		content := ""
 
-		switch {
-		case msg.OfUser != nil:
-			role = "user"
-			if !param.IsOmitted(msg.OfUser.Content.OfString) {
-				content = msg.OfUser.Content.OfString.Value
-			}
-		case msg.OfAssistant != nil:
-			role = "assistant"
-			if !param.IsOmitted(msg.OfAssistant.Content.OfString) {
-				content = msg.OfAssistant.Content.OfString.Value
-			}
-			// Print tool calls if they exist
-			if len(msg.OfAssistant.ToolCalls) > 0 {
-				content += "\nTool Calls:"
-				for _, toolCall := range msg.OfAssistant.ToolCalls {
-					content += fmt.Sprintf("\n- Function: %s", toolCall.Function.Name)
-					content += fmt.Sprintf("\n  Arguments: %s", toolCall.Function.Arguments)
-				}
-			}
-		case msg.OfDeveloper != nil:
-			role = "developer"
-			if !param.IsOmitted(msg.OfDeveloper.Content.OfString) {
-				content = msg.OfDeveloper.Content.OfString.Value
-			}
-		case msg.OfTool != nil:
-			role = "tool"
-			if !param.IsOmitted(msg.OfTool.Content.OfString) {
-				content = msg.OfTool.Content.OfString.Value
-			}
-		}
-
-		fmt.Printf("Role: %s\nContent: %s\n\n", role, content)
-	}
 }
