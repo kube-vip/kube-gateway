@@ -23,6 +23,10 @@ type Watch struct {
 	tokenFile     string
 	rootCAFile    string
 	namespaceFile string
+	config        *gateway.AITransaction
+	podname       string
+	namespace     string
+	configMapName string
 }
 
 func (w *Watch) InClusterConfig() (*rest.Config, error) {
@@ -66,7 +70,6 @@ func (w *Watch) client() (*kubernetes.Clientset, error) {
 	if w.token != "" {
 		slog.Info("kubernetes token", "Overriding", true)
 		config.BearerToken = w.token // Override the token
-		fmt.Println(w.token)
 	}
 
 	kubeconfig = config
@@ -82,12 +85,12 @@ func (w *Watch) client() (*kubernetes.Clientset, error) {
 // Actual watcher code
 type informerHandler struct {
 	clientset *kubernetes.Clientset
-	config    *gateway.AIConfig
+	config    *gateway.AITransaction
 	namespace []byte
 	podName   string
 }
 
-func NewWatcher(pid int, token string) *Watch {
+func NewWatcher(pid int, token string, config *gateway.AITransaction) *Watch {
 	const (
 		nameSpaceFile = "namespace"
 		tokenFile     = "token"
@@ -99,10 +102,13 @@ func NewWatcher(pid int, token string) *Watch {
 		namespaceFile: fmt.Sprintf("/proc/%d/root/var/run/secrets/kubernetes.io/serviceaccount/%s", pid, nameSpaceFile),
 		tokenFile:     fmt.Sprintf("/proc/%d/root/var/run/secrets/kubernetes.io/serviceaccount/%s", pid, tokenFile),
 		rootCAFile:    fmt.Sprintf("/proc/%d/root/var/run/secrets/kubernetes.io/serviceaccount/%s", pid, rootCAFile),
+		config:        config,
+		podname:       os.Getenv("POD_NAME"),
+		namespace:     os.Getenv("POD_NAMESPACE"),
 	}
 }
 
-func (w *Watch) Start(config *gateway.AIConfig) (err error) {
+func (w *Watch) Start1(config *gateway.AITransaction) (err error) {
 	clientSet, err := w.client()
 	if err != nil {
 		return err
@@ -144,23 +150,23 @@ func (w *Watch) Start(config *gateway.AIConfig) (err error) {
 
 func (i *informerHandler) OnUpdate(oldObj, newObj interface{}) {
 	updatedConfigMap := newObj.(*v1.ConfigMap)
-	if updatedConfigMap.Name == i.podName && updatedConfigMap.Namespace == string(i.namespace) {
+	if updatedConfigMap.Name == i.podName+"-kube-gateway" && updatedConfigMap.Namespace == string(i.namespace) {
 		data := updatedConfigMap.Data["config"]
+
 		err := json.Unmarshal([]byte(data), i.config)
 		if err != nil {
 			slog.Error("unable to read JSON from configMap", "err", err)
 		}
-		fmt.Println(data)
+
+		// fmt.Println(data)
 	}
 	// oldPod := oldObj.(*v1.Pod)
 
 }
 
+// Null functions as we don't need to do anything on these behaviours
 func (i *informerHandler) OnDelete(obj interface{}) {
 }
 
 func (i *informerHandler) OnAdd(obj interface{}, b bool) {
-	configmap := obj.(*v1.ConfigMap)
-	fmt.Println(configmap.Name)
-
 }

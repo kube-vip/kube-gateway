@@ -11,6 +11,7 @@ import (
 	"gateway/pkg/gateway"
 	"gateway/pkg/watcher"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -22,7 +23,6 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/docker/docker/pkg/parsers/kernel"
-	"github.com/gookit/slog"
 )
 
 // This sets upp all of the internal logic, and loads the eBPF
@@ -38,10 +38,10 @@ var tracker struct {
 func LoadEPF(c *connection.Config) error {
 	v, err := kernel.GetKernelVersion()
 	if err != nil {
-		slog.Errorf("unable to parse kernel version %v", err)
+		slog.Error("unable to parse kernel version", "err", err)
 	}
 
-	slog.Infof("detected Kernel %d.%d.x", v.Kernel, v.Major)
+	slog.Info("kernel lookup", "kernel", v.Kernel, "version", v.Major)
 
 	// Remove resource limits for kernels <5.11.
 	if v.Major <= 11 && v.Kernel <= 5 {
@@ -83,13 +83,13 @@ func LoadEPF(c *connection.Config) error {
 	for x := range c.Pids {
 		err = tracker.objs.MapPids.Update(c.Pids[x], uint8(1), ebpf.UpdateAny)
 		if err != nil {
-			slog.Fatalf("Failed to update active pids map: %v", err)
+			panic(err)
 		}
 	}
 
 	err = tracker.objs.mirrorsMaps.MapConfig.Update(&key, &config, ebpf.UpdateAny)
 	if err != nil {
-		slog.Fatalf("Failed to update proxyMaps map: %v", err)
+		panic(err)
 	}
 
 	//defer objs.Close()
@@ -162,6 +162,11 @@ func Setup() (*connection.Config, error) {
 		c.Tunnel = true
 	}
 
+	_, exists = os.LookupEnv("ENDPOINT")
+	if exists {
+		c.Encrypt = true
+	}
+
 	_, exists = os.LookupEnv("ENCRYPT")
 	if exists {
 		c.Encrypt = true
@@ -179,14 +184,14 @@ func Setup() (*connection.Config, error) {
 	// Lookup for environment variable
 	envAddress, exists := os.LookupEnv("KUBE_NODE_NAME")
 	if exists {
-		slog.Infof("Binding the proxy to [%s]", envAddress)
+		slog.Info("proxy Binding", "address", envAddress)
 		c.ClusterAddress = envAddress
 	}
 
 	// Lookup for environment variable
 	envAddress, exists = os.LookupEnv("TUNNEL_ADDRESS")
 	if exists {
-		slog.Infof("Binding the internal proxy to [%s]", envAddress)
+		slog.Info("internal proxy Binding", "address", envAddress)
 		c.Address = envAddress
 	}
 
@@ -204,33 +209,7 @@ func Setup() (*connection.Config, error) {
 		c.PodCIDR = podCIDR
 	}
 
-	c.Gateway = &gateway.AIConfig{
-		Model: os.Getenv("MODEL"),
-	}
-
-	// replacer := os.Getenv("MESSAGEREPLACER")
-	// if replacer != "" {
-	// 	pair := strings.Split(replacer, " ")
-	// 	for x := range pair {
-	// 		kv := strings.Split(pair[x], "//")
-	// 		if len(kv) != 2 {
-	// 			break
-	// 		}
-	// 		// type x struct {
-	// 		// 	Orig          string
-	// 		// 	New           string
-	// 		// 	CaseSensitive bool
-	// 		// 	PromptType    string
-	// 		// }
-	// 		// x := c.Gateway.PromptReplace
-	// 		// x.
-	// 		// x = kv[0]
-	// 		// x.New = kv[1]
-	// 		//c.Gateway.PromptReplace[0].New
-	// 		c.Gateway.PromptReplace = append(c.Gateway.PromptReplace, {Orig:""}...)
-	// 		//c.Gateway.MessageReplacer = append(c.Gateway.MessageReplacer, kv...)
-	// 	}
-	// }
+	c.AITransaction = &gateway.AITransaction{}
 
 	return &c, nil
 }
@@ -239,16 +218,18 @@ func Setup() (*connection.Config, error) {
 func Start(c *connection.Config) error {
 
 	slog.Info("Starting kube-gateway 🐙")
-	slog.Info("Features", "Encryption", c.Encrypt, "kTLS", c.KTLS, "AI", c.AI, "NETFLUSH", c.Flush, "TOKEN OVERRIDE", len(os.Getenv("KUBE-GATEWAY-TOKEN")) != 0)
+	slog.Info("Features", "Endpoint", c.Endpoint, "Encryption", c.Encrypt, "kTLS", c.KTLS, "AI", c.AI, "NETFLUSH", c.Flush, "TOKEN OVERRIDE", len(os.Getenv("KUBE-GATEWAY-TOKEN")) != 0)
 
-	go func() {
-		if len(c.Pids) != 0 {
-			w := watcher.NewWatcher(int(c.Pids[0]), os.Getenv("KUBE-GATEWAY-TOKEN"))
-			err := w.Start(c.Gateway)
-			slog.Error("Unable to create watcher", err)
-		}
+	if c.AI { // If AI is enabled then watch the configmaps
+		go func() {
+			if len(c.Pids) != 0 {
+				w := watcher.NewWatcher(int(c.Pids[0]), os.Getenv("KUBE-GATEWAY-TOKEN"), c.AITransaction)
+				err := w.Watch()
+				slog.Error("Unable to create watcher", "err", err)
+			}
 
-	}()
+		}()
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -256,13 +237,18 @@ func Start(c *connection.Config) error {
 	// We only demonstrate IPv4 in this example, but the same approach can be used for IPv6
 
 	c.Socks = tracker.objs.MapSocks
-	internalListener := c.CreateInternalListener()
+	internalListener, err := c.CreateInternalListener()
+	if err != nil {
+		panic(err)
+	}
 	defer internalListener.Close()
 	go c.StartListeners(internalListener, true)
 
-	var err error
 	// Create our listeners (don't accept traffic yet)
-	externalListener := c.CreateExternalListener()
+	externalListener, err := c.CreateExternalListener()
+	if err != nil {
+		panic(err)
+	}
 	defer externalListener.Close()
 
 	// Attempt to get certificates from API
@@ -273,10 +259,10 @@ func Start(c *connection.Config) error {
 	if c.Encrypt {
 		c.Certificates, err = connection.GetEnvCerts()
 		if err != nil {
-			slog.Error(err)
+			slog.Error("certificates fron envionment vars", "err", err)
 			c.Certificates, err = connection.GetFSCerts()
 			if err != nil {
-				slog.Error(err)
+				slog.Error("certificates fron file system vars", "err", err)
 			}
 		}
 

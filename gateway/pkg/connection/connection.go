@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"gateway/pkg/gateway"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"time"
 
 	"github.com/cilium/ebpf"
-	"github.com/gookit/slog"
 )
 
 type Config struct {
@@ -31,36 +30,37 @@ type Config struct {
 	ProxyFunc func(string) string
 
 	// Environment Variables
-	Tunnel  bool // Running as a tunnel compared to a sidecar
-	Encrypt bool // Load certificates as traffic is encrypted
-	KTLS    bool // Enable Kernel TLS
-	Flush   bool // Find existing network connections and terminate them
-	AI      bool // Workload is going to be AI
+	Endpoint bool // Run as a simple endoint
+	Tunnel   bool // Running as a tunnel compared to a sidecar
+	Encrypt  bool // Load certificates as traffic is encrypted
+	KTLS     bool // Enable Kernel TLS
+	Flush    bool // Find existing network connections and terminate them
+	AI       bool // Workload is going to be AI
 
 	// Gateway
-	Gateway *gateway.AIConfig
+	AITransaction *gateway.AITransaction
 
 	Pids []uint32
 }
 
-func (c *Config) CreateInternalListener() net.Listener {
+func (c *Config) CreateInternalListener() (net.Listener, error) {
 	proxyAddr := fmt.Sprintf("%s:%d", c.Address, c.ProxyPort)
 	listener, err := net.Listen("tcp", proxyAddr)
 	if err != nil {
-		slog.Fatalf("Failed to start proxy server: %v", err)
+		return nil, err
 	}
-	slog.Infof("[pid: %d] %s", os.Getpid(), proxyAddr)
-	return listener
+	slog.Info("listener", "type", "internal", "pid", os.Getpid(), "addr", proxyAddr)
+	return listener, nil
 }
 
-func (c *Config) CreateExternalListener() net.Listener {
+func (c *Config) CreateExternalListener() (net.Listener, error) {
 	proxyAddr := fmt.Sprintf("0.0.0.0:%d", c.ClusterPort)
 	listener, err := net.Listen("tcp", proxyAddr)
 	if err != nil {
-		slog.Fatalf("Failed to start proxy server: %v", err)
+		return nil, err
 	}
-	slog.Infof("[pid: %d] %s", os.Getpid(), proxyAddr)
-	return listener
+	slog.Info("listener", "type", "external", "pid", os.Getpid(), "addr", proxyAddr)
+	return listener, nil
 }
 
 // Blocking function
@@ -68,23 +68,23 @@ func (c *Config) StartListeners(listener net.Listener, internal bool) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil && !errors.Is(err, net.ErrClosed) {
-			slog.Printf("Failed to accept connection: %v", err)
+			slog.Info("accept connection", "err", err)
 			continue
 		} else {
 			if conn != nil {
 				if internal {
-					slog.Printf("internal %s -> %s", conn.RemoteAddr().String(), conn.LocalAddr().String())
+					slog.Info("internal connection", "remote", conn.RemoteAddr().String(), "local", conn.LocalAddr().String())
 					if c.KTLS {
 						go c.internalkTLSProxy(conn)
 					} else {
 						if c.AI {
-							go c.internalProxy(conn, c.Gateway.Http_gateway)
+							go c.internalProxy(conn, c.AITransaction.Http_gateway)
 						} else {
 							go c.internalProxy(conn, gateway.Copy_gateway)
 						}
 					}
 				} else {
-					slog.Printf("external %s -> %s", conn.RemoteAddr().String(), conn.LocalAddr().String())
+					slog.Info("external connection", "remote", conn.RemoteAddr().String(), "local", conn.LocalAddr().String())
 					go c.handleExternalConnection(conn)
 				}
 			}
@@ -106,17 +106,17 @@ func (c *Config) internalProxy(conn net.Conn, gatewayFunc func(net.Conn, net.Con
 	if c.Certificates != nil {
 		targetConn, err = c.createTLSProxy(destAddr)
 		if err != nil {
-			slog.Error(err)
+			slog.Error("proxy create", "err", err)
 			return
 		}
-		slog.Infof("proxy (TLS) connected to endpoint %s", targetConn.RemoteAddr().String())
+		slog.Info("proxy (TLS)", "endpoint", targetConn.RemoteAddr().String())
 
 	} else {
 		targetConn, err = c.createProxy(destAddr)
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
-		slog.Infof("proxy connected to endpoint %s", targetConn.RemoteAddr().String())
+		slog.Info("proxy", "endpoint", targetConn.RemoteAddr().String())
 
 	}
 	defer targetConn.Close()
@@ -124,7 +124,7 @@ func (c *Config) internalProxy(conn net.Conn, gatewayFunc func(net.Conn, net.Con
 	//log.Printf("Internal proxy sending original destination: %s\n", targetDestination)
 	_, err = targetConn.Write([]byte(targetDestination))
 	if err != nil {
-		slog.Printf("Failed to send original destination: %v", err)
+		slog.Error("destination write", "err", err)
 	}
 
 	tmp := make([]byte, 256)
@@ -139,7 +139,7 @@ func (c *Config) internalProxy(conn net.Conn, gatewayFunc func(net.Conn, net.Con
 	// - From the target server to the client (handled by the main goroutine).
 	err = gatewayFunc(conn, targetConn)
 	if err != nil {
-		slog.Printf("Failed copying data to target: %v", err)
+		slog.Error("date write", "err", err)
 	}
 }
 
@@ -166,25 +166,25 @@ func (c *Config) handleExternalConnection(conn net.Conn) {
 	tmp := make([]byte, 256)
 	n, err := conn.Read(tmp)
 	if err != nil {
-		slog.Print(err)
+		slog.Info("external read", "err", err)
 	}
 	remoteAddress := string(tmp[:n])
 
 	if remoteAddress == fmt.Sprintf("%s:%d", c.Address, c.ProxyPort) {
-		slog.Printf("Potential loopback")
+		slog.Error("Potential loopback")
 		return
 	}
 
 	// Check that the original destination address is reachable from the proxy
 	targetConn, err := net.DialTimeout("tcp", remoteAddress, 5*time.Second)
 	if err != nil {
-		slog.Printf("Failed to connect to original destination[%s]: %v", string(tmp), err)
+		slog.Error("connection", "destination", string(tmp), "err", err)
 		return
 	}
 	defer targetConn.Close()
 	conn.Write([]byte{'Y'}) // Send a response to kickstart the comms
 
-	slog.Printf("%s -> %s", conn.RemoteAddr(), targetConn.RemoteAddr())
+	slog.Info("connection", "remote", conn.RemoteAddr(), "target", targetConn.RemoteAddr())
 
 	// The following code creates two data transfer channels:
 	// - From the client to the target server (handled by a separate goroutine).
@@ -192,11 +192,11 @@ func (c *Config) handleExternalConnection(conn net.Conn) {
 	go func() {
 		_, err = io.Copy(targetConn, conn)
 		if err != nil {
-			slog.Printf("Failed copying data to target: %v", err)
+			slog.Error("copying to", "target", "err", err)
 		}
 	}()
 	_, err = io.Copy(conn, targetConn)
 	if err != nil {
-		slog.Printf("Failed copying data from target: %v", err)
+		slog.Error("copying from", "target", "err", err)
 	}
 }

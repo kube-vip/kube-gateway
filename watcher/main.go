@@ -124,7 +124,7 @@ func main() {
 			if err != nil {
 				slog.PanicErr(err)
 			}
-			err = certCollection.loadSecret(*certName, c)
+			err = certCollection.loadSecret(*certName, "kube-gateway", c)
 			if err != nil {
 				slog.Error("secret", "msg", err)
 			}

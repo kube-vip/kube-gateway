@@ -1,18 +1,24 @@
 {
-    "model": "llama3.1",
-    "maxTokens": "50",
-    "promptReplace": [
-        {
-            "orig": "giraffe",
-            "new": "horse",
-            "caseSensitive": true,
-            "promptType": "user"
-        },
-        {
-            "orig": "joke",
-            "new": "fact",
-            "caseSensitive": false,
-            "promptType": "user"
-        }
-    ]
+    "request": {
+        "maxTokens": "50",
+        "modelReplace": [
+            {
+                "orig": "llama3.2:1b",
+                "new": "gemma2:2b"
+            }
+        ],
+        "userPromptReplace": [
+            {
+                "orig": "giraffe",
+                "new": "horse",
+                "caseSensitive": true
+            },
+            {
+                "orig": "joke",
+                "new": "fact",
+                "caseSensitive": false
+            }
+        ]
+    },
+    "response": {}
 }

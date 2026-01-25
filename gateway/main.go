@@ -1,10 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"gateway/pkg/manager"
+	"log/slog"
 
-	"github.com/gookit/slog"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
 )
@@ -13,16 +12,17 @@ func main() {
 	slog.Info("starting the kube-gateway 🐝")
 	c, err := manager.Setup()
 	if err != nil {
-		slog.Fatal(err)
+		panic(err)
 	}
+	slog.Info("watching for pods", "CIDR", c.PodCIDR)
 
 	slog.Info("Finding existing network sessions")
 	n, err := net.Connections("tcp")
 	if err != nil {
-		slog.Errorf("Unable to find existing connections: %s", err)
+		slog.Error("finding existing connections", "err", err)
 	} else {
 		for x := range n {
-			fmt.Printf("Flushing: %t, source: %s / destination:%s\n", c.Flush, n[x].Laddr, n[x].Raddr)
+			//fmt.Printf("Flushing: %t, source: %s / destination:%s\n", c.Flush, n[x].Laddr, n[x].Raddr)
 			if c.Flush {
 				if n[x].Laddr.IP != "::" || n[x].Raddr.IP != "::" {
 					x := manager.Tuple{SourceIP: n[x].Laddr.IP, SourcePort: n[x].Laddr.Port, DestIP: n[x].Raddr.IP, DestPort: n[x].Raddr.Port}
@@ -31,7 +31,7 @@ func main() {
 					}()
 
 					if err != nil {
-						slog.Errorf("Unable to kill existing TCP sessions: %v", err)
+						slog.Error("killing existing TCP sessions", "err", err)
 					}
 				}
 			}
@@ -41,16 +41,16 @@ func main() {
 	p, err := process.Processes()
 	for x := range p {
 		n, _ := p[x].Name()
-		fmt.Printf("Process: %s, pid: %d\n", n, p[x].Pid)
+		slog.Info("process found", "process", n, "pid", p[x].Pid)
 		c.Pids = append(c.Pids, uint32(p[x].Pid))
 	}
 	err = manager.LoadEPF(c)
 	if err != nil {
-		slog.Fatal(err)
+		panic(err) // TODO: handle better
 	}
 
 	err = manager.Start(c)
 	if err != nil {
-		slog.Fatal(err)
+		panic(err) // TODO: handle better
 	}
 }
