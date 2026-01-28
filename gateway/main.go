@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	slog.Info("starting the kube-gateway 🐝")
+	slog.Info("starting the kube-gateway 🐙🐝")
 	c, err := manager.Setup()
 	if err != nil {
 		panic(err)

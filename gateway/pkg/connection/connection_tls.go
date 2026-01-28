@@ -7,11 +7,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"os"
 	"time"
-
-	"github.com/gookit/slog"
 )
 
 func (c *Config) StartExternalTLSListener() net.Listener {
@@ -19,12 +18,12 @@ func (c *Config) StartExternalTLSListener() net.Listener {
 
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(c.Certificates.ca) {
-		log.Fatalf("could not append CA")
+		panic("could not append CA")
 	}
 	certificate, err := tls.X509KeyPair(c.Certificates.cert, c.Certificates.key)
 
 	if err != nil {
-		log.Fatalf("could not load certificate: %v", err)
+		panic(fmt.Sprintf("could not load certificate: %v", err))
 	}
 
 	config := &tls.Config{
@@ -37,9 +36,9 @@ func (c *Config) StartExternalTLSListener() net.Listener {
 
 	// listener, err := net.Listen("tcp", proxyAddr)
 	if err != nil {
-		slog.Fatalf("Failed to start proxy server: %v", err)
+		panic(fmt.Sprintf("Failed to start proxy server: %v", err))
 	}
-	slog.Infof("[pid: %d] %s", os.Getpid(), proxyAddr)
+	slog.Info("external TLS listener", "pid", os.Getpid(), "proxyaddr", proxyAddr)
 	return listener
 }
 
@@ -49,17 +48,16 @@ func (c *Config) StartTLSListener(listener net.Listener) {
 		conn, err := listener.Accept()
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) { // Don't print closing connection error, just continue to the next
-				slog.Printf("Failed to accept connection: %v", err)
+				slog.Error("accept connection", "err", err)
 			}
 			continue
 		}
 
-		slog.Printf(" %s -> %s", conn.RemoteAddr().String(), conn.LocalAddr().String())
+		slog.Info("accepted connection", "remote", conn.RemoteAddr().String(), "local", conn.LocalAddr().String())
 		go c.handleTLSExternalConnection(conn)
 
 	}
 }
-
 
 func (c *Config) createTLSProxy(destAddr string) (net.Conn, error) {
 	caCertPool := x509.NewCertPool()
@@ -102,13 +100,13 @@ func (c *Config) handleTLSExternalConnection(conn net.Conn) {
 	tmp := make([]byte, 256)
 	n, err := tConn.Read(tmp)
 	if err != nil {
-		slog.Print(err)
+		slog.Error("connection read", "err", err)
 	}
 
 	remoteAddress := string(tmp[:n])
 
 	if remoteAddress == fmt.Sprintf("%s:%d", c.Address, c.ProxyPort) {
-		slog.Printf("Potential loopback")
+		slog.Error("Potential loopback", "remoteAdd", remoteAddress)
 		return
 	}
 
@@ -116,13 +114,13 @@ func (c *Config) handleTLSExternalConnection(conn net.Conn) {
 	targetConn, err := net.DialTimeout("tcp", remoteAddress, 5*time.Second)
 	//targetConn, err := tls.Dial("tcp", remoteAddress, config)
 	if err != nil {
-		slog.Printf("Failed to connect to original destination[%s]: %v", string(tmp), err)
+		slog.Error("connection", "original/local addr", string(tmp), "err", err)
 		return
 	}
 	defer targetConn.Close()
 	tConn.Write([]byte{'Y'}) // Send a response to kickstart the comms
 
-	slog.Printf("%s -> %s", conn.RemoteAddr(), targetConn.RemoteAddr())
+	slog.Info("connection", "remote", conn.RemoteAddr(), "target", targetConn.RemoteAddr())
 
 	// The following code creates two data transfer channels:
 	// - From the client to the target server (handled by a separate goroutine).
@@ -130,11 +128,11 @@ func (c *Config) handleTLSExternalConnection(conn net.Conn) {
 	go func() {
 		_, err = io.Copy(targetConn, tConn)
 		if err != nil {
-			slog.Printf("Failed copying data to target: %v", err)
+			slog.Error("copying data to target", "err", err)
 		}
 	}()
 	_, err = io.Copy(tConn, targetConn)
 	if err != nil {
-		slog.Printf("Failed copying data from target: %v", err)
+		slog.Error("copying data from target", "err", err)
 	}
 }

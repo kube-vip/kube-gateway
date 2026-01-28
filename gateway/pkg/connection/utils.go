@@ -2,12 +2,11 @@ package connection
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"syscall"
 	"unsafe"
-
-	"github.com/gookit/slog"
 )
 
 const (
@@ -53,7 +52,7 @@ func (c *Config) findTargetFromConnection(conn net.Conn) (targetAddr string, tar
 	// which isn't directly accessible through Go's higher-level networking API.
 	rawConn, err := conn.(*net.TCPConn).SyscallConn()
 	if err != nil {
-		slog.Printf("Failed to get raw connection: %v", err)
+		slog.Error("getting raw connection", "err", err)
 		return
 	}
 
@@ -65,7 +64,7 @@ func (c *Config) findTargetFromConnection(conn net.Conn) (targetAddr string, tar
 		// Retrieve the original destination address by making a syscall with the SO_ORIGINAL_DST option.
 		err = getsockopt(int(fd), syscall.SOL_IP, SO_ORIGINAL_DST, unsafe.Pointer(&originalDst), &optlen)
 		if err != nil {
-			slog.Printf("getsockopt SO_ORIGINAL_DST failed: %v", err)
+			slog.Error("getsockopt SO_ORIGINAL_DST", "err", err)
 			return
 		}
 		// cookie, err = unix.GetsockoptUint64(int(fd), unix.SOL_SOCKET, unix.SO_COOKIE)
@@ -122,10 +121,10 @@ func GetEnvCerts() (*Certs, error) {
 func GetFSCerts() (*Certs, error) {
 	f, err := os.ReadDir("/tmp")
 	if err != nil {
-		slog.Errorf("unable to parse /tmp [%v]", err)
+		slog.Error("unable to parse /tmp", "err", err)
 	} else {
 		for x := range f {
-			slog.Infof("%s", f[x].Name())
+			slog.Info("searching", "file", f[x].Name())
 		}
 	}
 	envca, err := os.ReadFile("/tmp/ca.crt")

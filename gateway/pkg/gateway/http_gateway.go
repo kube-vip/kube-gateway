@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
 
-	"github.com/gookit/slog"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 )
@@ -25,7 +25,7 @@ func (c *AITransaction) Http_gateway(ingress, egress net.Conn) error {
 				if err == io.EOF {
 					return
 				}
-				slog.Error(err)
+				slog.Error("reading request", "err", err)
 				return
 			}
 			//  fmt.Println(req)
@@ -37,7 +37,7 @@ func (c *AITransaction) Http_gateway(ingress, egress net.Conn) error {
 			if len(c.Request.ModelReplace) != 0 {
 				for x := range c.Request.ModelReplace {
 					if chat.Model == c.Request.ModelReplace[x].Orig {
-						slog.Infof("Changing Model %s -> %s", chat.Model, c.Request.ModelReplace[x].New)
+						slog.Info("Changing Model", "original", chat.Model, "replacement", c.Request.ModelReplace[x].New)
 						chat.Model = c.Request.ModelReplace[x].New
 					}
 				}
@@ -94,7 +94,7 @@ func (c *AITransaction) Http_gateway(ingress, egress net.Conn) error {
 			req.Body = io.NopCloser(bytes.NewBuffer(newBody))
 
 			if err != nil {
-				slog.Errorf("Incoming data read: %v", err)
+				slog.Error("data read", "err", err)
 				if err == io.EOF {
 					return
 				}
@@ -102,7 +102,7 @@ func (c *AITransaction) Http_gateway(ingress, egress net.Conn) error {
 			}
 			err = req.Write(egress)
 			if err != nil {
-				slog.Errorf("Writing to remote: %v", err)
+				slog.Error("data write", "err", err)
 				return
 			}
 		}

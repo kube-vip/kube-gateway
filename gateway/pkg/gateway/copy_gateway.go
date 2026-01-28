@@ -2,9 +2,8 @@ package gateway
 
 import (
 	"io"
+	"log/slog"
 	"net"
-
-	"github.com/gookit/slog"
 )
 
 func Copy_gateway(ingress, egress net.Conn) error {
@@ -12,12 +11,12 @@ func Copy_gateway(ingress, egress net.Conn) error {
 	go func() {
 		_, err := io.Copy(egress, ingress)
 		if err != nil {
-			slog.Printf("Failed copying data to target: %v", err)
+			slog.Error("copying data to target", "err", err)
 		}
 	}()
 	_, err := io.Copy(ingress, egress)
 	if err != nil {
-		slog.Printf("Failed copying data from target: %v", err)
+		slog.Error("copying data from target", "err", err)
 	}
-	return nil
+	return nil //TODO: this is unused, but matched signature header
 }

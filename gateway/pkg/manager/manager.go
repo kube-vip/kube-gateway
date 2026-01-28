@@ -216,8 +216,6 @@ func Setup() (*connection.Config, error) {
 
 // This is a blocking function
 func Start(c *connection.Config) error {
-
-	slog.Info("Starting kube-gateway 🐙")
 	slog.Info("Features", "Endpoint", c.Endpoint, "Encryption", c.Encrypt, "kTLS", c.KTLS, "AI", c.AI, "NETFLUSH", c.Flush, "TOKEN OVERRIDE", len(os.Getenv("KUBE-GATEWAY-TOKEN")) != 0)
 
 	if c.AI { // If AI is enabled then watch the configmaps
