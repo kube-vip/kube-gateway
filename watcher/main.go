@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os/user"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -14,8 +15,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/gookit/slog"
 )
 
 // Annotations that are applied to a pod, that the watcher will translate to an environment variable for the kube-gateway pod
@@ -93,20 +92,20 @@ func main() {
 	if *loadCA {
 		err := certCollection.readCACert()
 		if err != nil {
-			slog.PanicErr(err)
+			panic(err)
 		}
 		err = certCollection.readCAKey()
 		if err != nil {
-			slog.PanicErr(err)
+			panic(err)
 		}
 
 		c, err := client(*kubeconfig)
 		if err != nil {
-			slog.PanicErr(err)
+			panic(err)
 		}
 		err = certCollection.loadCA(c)
 		if err != nil {
-			slog.PanicErr(err)
+			panic(err)
 		}
 	}
 	if *certName != "" {
@@ -122,7 +121,7 @@ func main() {
 		if *certSecret {
 			c, err := client(*kubeconfig)
 			if err != nil {
-				slog.PanicErr(err)
+				panic(err)
 			}
 			err = certCollection.loadSecret(*certName, "kube-gateway", c)
 			if err != nil {
@@ -133,15 +132,15 @@ func main() {
 	if *watch {
 		err := certCollection.getEnvCerts()
 		if err != nil {
-			slog.Warnf("Error reading certificates from env vars [%v]", err)
+			slog.Error("Error reading certificates from env vars", "err", err)
 
 			err := certCollection.readCACert()
 			if err != nil {
-				slog.PanicErr(err)
+				panic(err)
 			}
 			err = certCollection.readCAKey()
 			if err != nil {
-				slog.PanicErr(err)
+				panic(err)
 			}
 		}
 		var c *kubernetes.Clientset
@@ -152,7 +151,7 @@ func main() {
 			c, err = client(*kubeconfig)
 		}
 		if err != nil {
-			slog.PanicErr(err)
+			panic(err)
 		}
 		certCollection.watcher(c, image, imagePull, podcidr)
 	}
@@ -165,14 +164,14 @@ func checkSecretExists(c *kubernetes.Clientset, namespace string) []byte {
 	s, err = c.CoreV1().Secrets(namespace).Get(context.TODO(), "kube-gateway", metav1.GetOptions{})
 
 	if err != nil {
-		slog.Errorf("finding secret %v", err)
+		slog.Error("finding secret", "err", err)
 
 		// lets create the correct settings
 		account := v1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "kube-gateway", Namespace: namespace}}
 
 		_, err = c.CoreV1().ServiceAccounts(namespace).Create(context.TODO(), &account, metav1.CreateOptions{})
 		if err != nil {
-			slog.Errorf("creating service account %v", err)
+			slog.Error("creating service account", "err", err)
 		}
 		clusterRoleBinding := &rbacv1.ClusterRoleBinding{
 			TypeMeta: metav1.TypeMeta{APIVersion: rbacv1.SchemeGroupVersion.String(), Kind: "ClusterRoleBinding"},
@@ -194,13 +193,13 @@ func checkSecretExists(c *kubernetes.Clientset, namespace string) []byte {
 		}
 		_, err = c.RbacV1().ClusterRoleBindings().Create(context.TODO(), clusterRoleBinding, metav1.CreateOptions{})
 		if err != nil {
-			slog.Errorf("creating role binding %v", err)
+			slog.Error("creating role binding", "err", err)
 		}
 		expirationSeconds := int64(60 * 60 * 24 * 365)
 
 		t, err := c.CoreV1().ServiceAccounts(namespace).CreateToken(context.TODO(), "kube-gateway", &authenticationv1.TokenRequest{Spec: authenticationv1.TokenRequestSpec{ExpirationSeconds: &expirationSeconds}}, metav1.CreateOptions{})
 		if err != nil {
-			slog.Errorf("creating secret %v", err)
+			slog.Error("creating secret", "err", err)
 		}
 		secretMap := make(map[string][]byte)
 
@@ -219,7 +218,7 @@ func checkSecretExists(c *kubernetes.Clientset, namespace string) []byte {
 
 		s, err = c.CoreV1().Secrets(namespace).Create(context.TODO(), &secret, metav1.CreateOptions{})
 		if err != nil {
-			slog.Errorf("unable to create secrets %v", err)
+			slog.Error("unable to create secrets", "err", err)
 		}
 		slog.Info(fmt.Sprintf("Created Secret 🔐 [%s]", s.Name))
 	} else {

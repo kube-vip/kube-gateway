@@ -9,12 +9,12 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net"
 	"os"
 	"time"
 
-	"github.com/gookit/slog"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -55,12 +55,12 @@ func (c *certs) writeCACert() (err error) {
 	// Public key
 	certOut, err := os.Create(*c.folder + "ca.crt")
 	if err != nil {
-		slog.Error("create ca failed", err)
+		slog.Error("create ca certificate", "err", err)
 		return err
 	}
 	certOut.Write(c.cacert)
 	certOut.Close()
-	slog.Info("written ca.crt")
+	slog.Info("written", "file", certOut.Name())
 	return nil
 }
 
@@ -68,12 +68,12 @@ func (c *certs) writeCAKey() (err error) {
 	// Public key
 	certOut, err := os.Create(*c.folder + "ca.key")
 	if err != nil {
-		slog.Error("create ca failed", err)
+		slog.Error("create ca key", "err", err)
 		return err
 	}
 	certOut.Write(c.cakey)
 	certOut.Close()
-	slog.Info("written ca.key")
+	slog.Info("written", "file", certOut.Name())
 	return nil
 }
 
@@ -81,12 +81,12 @@ func (c *certs) writeCert(name string) (err error) {
 	// Public key
 	certOut, err := os.Create(name + ".crt")
 	if err != nil {
-		slog.Error("create ca failed", err)
+		slog.Error("create certificate", "err", err)
 		return err
 	}
 	certOut.Write(c.cert)
 	certOut.Close()
-	slog.Info("written ca.crt")
+	slog.Info("written", "file", certOut.Name())
 	return nil
 }
 
@@ -94,12 +94,12 @@ func (c *certs) writeKey(name string) (err error) {
 	// Public key
 	certOut, err := os.Create(name + ".key")
 	if err != nil {
-		slog.Error("create ca failed", err)
+		slog.Error("create cert key", "err", err)
 		return err
 	}
 	certOut.Write(c.key)
 	certOut.Close()
-	slog.Info("written ca.key")
+	slog.Info("written", "file", certOut.Name())
 	return nil
 }
 
@@ -256,7 +256,7 @@ func (c *certs) loadSecret(name, namespace string, clientSet *kubernetes.Clients
 	if err != nil {
 		return fmt.Errorf("unable to create secrets %v", err)
 	}
-	slog.Info(fmt.Sprintf("Created Secret 🔐 [%s]", s.Name))
+	slog.Info("Created Secret 🔐", "name", s.Name)
 
 	return nil
 }
@@ -281,7 +281,7 @@ func (c *certs) loadCA(clientSet *kubernetes.Clientset) error {
 	if err != nil {
 		return fmt.Errorf("unable to create secrets %v", err)
 	}
-	slog.Info(fmt.Sprintf("Created Secret 🔐 [%s]", s.Name))
+	slog.Info("Created Secret 🔐", "name", s.Name)
 
 	return nil
 

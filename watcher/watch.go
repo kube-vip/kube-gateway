@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/gookit/slog"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -107,9 +107,9 @@ func (i *informerHandler) OnDelete(obj interface{}) {
 	name := fmt.Sprintf("kube-gateway-%s", p.Name)
 	err := i.clientset.CoreV1().Secrets(p.Namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
-		slog.Errorf("Error deleting secret %v", err)
+		slog.Error("Error deleting secret", "err", err)
 	} else {
-		slog.Infof("Deleted secret 🔏 [%s]", name)
+		slog.Info("Deleted secret 🔏", "name", name)
 	}
 
 }
@@ -156,7 +156,7 @@ func (i *informerHandler) withProxyContainer(pod *v1.Pod, image *string, forcePu
 	// Create the secret for the pod
 	err := i.c.loadSecret(pod.Name, pod.Namespace, i.clientset)
 	if err != nil {
-		slog.Error(err)
+		slog.Error("load secret", "err", err)
 	}
 	ec.EnvFrom = append(ec.EnvFrom, v1.EnvFromSource{
 		SecretRef: &v1.SecretEnvSource{

@@ -6,7 +6,6 @@ require (
 	github.com/cilium/ebpf v0.19.0
 	github.com/docker/docker v28.3.3+incompatible
 	github.com/evilsocket/opensnitch/daemon v0.0.0-20251211223604-ede079fb9fac
-	github.com/gookit/slog v0.5.8
 	github.com/gopacket/gopacket v1.5.0
 	github.com/openai/openai-go v1.12.0
 	github.com/shirou/gopsutil/v4 v4.25.11
@@ -36,9 +35,6 @@ require (
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gookit/color v1.5.4 // indirect
-	github.com/gookit/goutil v0.6.18 // indirect
-	github.com/gookit/gsr v0.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
@@ -59,10 +55,8 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
-	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	gitlab.com/go-extension/aes-ccm v0.0.0-20230221065045-e58665ef23c7 // indirect
 	gitlab.com/go-extension/hash v0.0.0-20250912170447-263d1d8375e4 // indirect
@@ -72,10 +66,8 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect

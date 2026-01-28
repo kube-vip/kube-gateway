@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"net"
 	"syscall"
 	"time"
 
-	"github.com/gookit/slog"
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/layers"
 	"github.com/gopacket/gopacket/pcap"
@@ -146,7 +146,7 @@ func (t *Tuple) Run(iface string, prom bool, count, timeout int) error {
 				if egress && ingress { // when both sides of communication is reset return
 					socks, err := netlink.SocketsDump(syscall.AF_INET, syscall.IPPROTO_TCP)
 					if err != nil {
-						slog.Errorf("Dumping sockets %v", err)
+						slog.Error("Dumping sockets", "err", err)
 					} else {
 						for x := range socks {
 
@@ -161,7 +161,7 @@ func (t *Tuple) Run(iface string, prom bool, count, timeout int) error {
 								req.AddData(sockReq)
 								_, err := req.Execute(syscall.NETLINK_INET_DIAG, 0)
 								if err != nil {
-									slog.Errorf("Destroy sockets %v", err)
+									slog.Error("Destroy sockets", "err", err)
 								}
 							}
 						}

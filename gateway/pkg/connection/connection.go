@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"gateway/pkg/gateway"
-	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -189,14 +188,5 @@ func (c *Config) handleExternalConnection(conn net.Conn) {
 	// The following code creates two data transfer channels:
 	// - From the client to the target server (handled by a separate goroutine).
 	// - From the target server to the client (handled by the main goroutine).
-	go func() {
-		_, err = io.Copy(targetConn, conn)
-		if err != nil {
-			slog.Error("copying to", "target", "err", err)
-		}
-	}()
-	_, err = io.Copy(conn, targetConn)
-	if err != nil {
-		slog.Error("copying from", "target", "err", err)
-	}
+	gateway.Copy_gateway(targetConn, conn)
 }
