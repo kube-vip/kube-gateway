@@ -77,7 +77,7 @@ func (c *Config) StartListeners(listener net.Listener, internal bool) {
 						go c.internalkTLSProxy(conn)
 					} else {
 						if c.AI {
-							go c.internalProxy(conn, c.AITransaction.Http_gateway)
+							go c.internalProxy(conn, gateway.Http_gateway)
 						} else {
 							go c.internalProxy(conn, gateway.Copy_gateway)
 						}
@@ -92,7 +92,7 @@ func (c *Config) StartListeners(listener net.Listener, internal bool) {
 }
 
 // HTTP proxy request handler
-func (c *Config) internalProxy(conn net.Conn, gatewayFunc func(net.Conn, net.Conn) error) {
+func (c *Config) internalProxy(conn net.Conn, gatewayFunc func(net.Conn, net.Conn, *gateway.AITransaction) error) {
 	defer conn.Close()
 	// Get original destination address
 	destAddr, destPort, err := c.findTargetFromConnection(conn)
@@ -136,9 +136,9 @@ func (c *Config) internalProxy(conn net.Conn, gatewayFunc func(net.Conn, net.Con
 	// The following code creates two data transfer channels:
 	// - From the client to the target server (handled by a separate goroutine).
 	// - From the target server to the client (handled by the main goroutine).
-	err = gatewayFunc(conn, targetConn)
+	err = gatewayFunc(conn, targetConn, c.AITransaction)
 	if err != nil {
-		slog.Error("date write", "err", err)
+		slog.Error("data write", "err", err)
 	}
 }
 
@@ -188,5 +188,5 @@ func (c *Config) handleExternalConnection(conn net.Conn) {
 	// The following code creates two data transfer channels:
 	// - From the client to the target server (handled by a separate goroutine).
 	// - From the target server to the client (handled by the main goroutine).
-	gateway.Copy_gateway(targetConn, conn)
+	gateway.Copy_gateway(targetConn, conn, c.AITransaction)
 }

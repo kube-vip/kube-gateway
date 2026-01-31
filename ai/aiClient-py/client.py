@@ -19,4 +19,4 @@ while True:
         ],
         model='llama3.2',
     )
-    print(chat_completion.choices[0].message.content)
+    print(chat_completion.choices[0].message.content.stream)

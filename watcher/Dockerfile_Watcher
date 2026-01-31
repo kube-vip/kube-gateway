@@ -9,10 +9,10 @@ WORKDIR /src
 ENV GO111MODULE=on
 RUN --mount=type=cache,sharing=locked,id=gomod,target=/go/pkg/mod/cache \
     --mount=type=cache,sharing=locked,id=goroot,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags '-s -w -extldflags -static' -o kube-cert-watcher .
-RUN upx ./kube-cert-watcher
+    CGO_ENABLED=0 GOOS=linux go build -ldflags '-s -w -extldflags -static' -o kube-gateway-watcher .
+RUN upx ./kube-gateway-watcher
 #FROM debian
 FROM scratch
-COPY --from=dev /src/kube-cert-watcher /
+COPY --from=dev /src/kube-gateway-watcher /
 #RUN apt-get update; apt-get install -y net-tools nftables
-CMD ["/kube-cert-watcher"]
+CMD ["/kube-gateway-watcher"]

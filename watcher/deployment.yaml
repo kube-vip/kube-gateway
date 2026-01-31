@@ -81,17 +81,17 @@ rules:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: kube-cert-watcher
+  name: kube-gateway-watcher
   namespace: kube-gateway
 spec:
   serviceAccountName: kube-watcher
   containers:
-    - name: kube-cert-watcher
+    - name: kube-gateway-watcher
       image: thebsdbox/watcher:v1
       imagePullPolicy: IfNotPresent
       command:
         [
-          "/kube-cert-watcher",
+          "/kube-gateway-watcher",
           "-watch",
           "-forcePull",
           "-podcidr",

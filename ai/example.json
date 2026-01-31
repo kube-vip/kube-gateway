@@ -1,0 +1,27 @@
+{
+    "request": {
+        "maxTokens": "50",
+        "debug": false,
+        "modelReplace": [
+            {
+                "orig": "llama3.2:1b",
+                "new": "gemma2:2b"
+            }
+        ],
+        "userPromptReplace": [
+            {
+                "orig": "giraffe",
+                "new": "horse",
+                "caseSensitive": true
+            },
+            {
+                "orig": "joke",
+                "new": "fact",
+                "caseSensitive": false
+            }
+        ]
+    },
+    "response": {
+        "debug": false
+    }
+}

@@ -188,5 +188,5 @@ func (c *Config) handlekTLSExternalConnection(conn net.Conn) {
 	// The following code creates two data transfer channels:
 	// - From the client to the target server (handled by a separate goroutine).
 	// - From the target server to the client (handled by the main goroutine).
-	gateway.Copy_gateway(targetConn, tConn)
+	gateway.Copy_gateway(targetConn, tConn, c.AITransaction)
 }
