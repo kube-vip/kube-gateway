@@ -47,16 +47,21 @@ func (w *Watch) Watch() error {
 			if !ok {
 				slog.Error("configmap", "err", "unable to process")
 			}
-			slog.Info("configmap updated", "name", updatedConfigMap.Name)
 			if updatedConfigMap.Name == w.configMapName && updatedConfigMap.Namespace == string(w.namespace) {
+				slog.Info("configmap change", "type", event.Type, "name", updatedConfigMap.Name)
 				data := updatedConfigMap.Data["config"]
-
 				err := json.Unmarshal([]byte(data), w.config)
 				if err != nil {
 					slog.Error("unable to read JSON from configMap", "err", err)
 				}
-				fmt.Println(data)
 			}
+		case watch.Deleted:
+			updatedConfigMap, ok := event.Object.(*v1.ConfigMap)
+			if !ok {
+				slog.Error("configmap", "err", "unable to process")
+			}
+			slog.Info("configmap change", "type", event.Type, "name", updatedConfigMap.Name)
+			w.config.Reset() // Force the struct to blank (TODO: is there a better way?)
 		}
 	}
 	return nil
