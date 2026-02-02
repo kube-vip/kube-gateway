@@ -77,7 +77,7 @@ func (c *Config) StartListeners(listener net.Listener, internal bool) {
 						go c.internalkTLSProxy(conn)
 					} else {
 						if c.AI {
-							go c.internalProxy(conn, gateway.Http_gateway)
+							go c.directConnect(conn, gateway.Http_gateway)
 						} else {
 							go c.internalProxy(conn, gateway.Copy_gateway)
 						}
@@ -91,7 +91,34 @@ func (c *Config) StartListeners(listener net.Listener, internal bool) {
 	}
 }
 
-// HTTP proxy request handler
+func (c *Config) directConnect(conn net.Conn, gatewayFunc func(net.Conn, net.Conn, *gateway.AITransaction) error) {
+	defer conn.Close()
+	// Get original destination address
+	destAddr, destPort, err := c.findTargetFromConnection(conn)
+	if err != nil {
+		return
+	}
+	targetDestination := fmt.Sprintf("%s:%d", destAddr, destPort) //nolint
+
+	// Check that the original destination address is reachable from the proxy
+	targetConn, err := net.DialTimeout("tcp", targetDestination, 5*time.Second)
+	if err != nil {
+		slog.Error("direct connect", "target", targetDestination, "err", err)
+
+		return
+	}
+	slog.Info("direct connect", "target", targetDestination)
+
+	// gatewayFunc(input from the application, A destination, the configuration)
+
+
+	err = gatewayFunc(conn, targetConn, c.AITransaction)
+	if err != nil {
+		slog.Error("data write", "err", err)
+	}
+}
+
+// Create internal Proxy
 func (c *Config) internalProxy(conn net.Conn, gatewayFunc func(net.Conn, net.Conn, *gateway.AITransaction) error) {
 	defer conn.Close()
 	// Get original destination address
