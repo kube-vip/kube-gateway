@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ai-ui
+  labels:
+    app: ai-ui
+spec:
+  containers:
+    - name: ollama-ui
+      image: jakobhoeg/nextjs-ollama-ui:latest
+      ports:
+        - containerPort: 8000
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: OLLAMA_URL
+          value: "http://ollama1.ollama:11434"
+        - name: TOKEN
+          value: ""
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ai-ui
+  name: ai-ui
+spec:
+  type: NodePort
+  ports:
+    - port: 3000
+      nodePort: 30009
+  selector:
+    app: ui

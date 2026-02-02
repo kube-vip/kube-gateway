@@ -17,6 +17,7 @@ import (
 )
 
 func Http_gateway(ingress, egress net.Conn, c *AITransaction) error {
+	// gatewayFunc(input from the application, A destination, the configuration)
 
 	go func() {
 		for {
@@ -27,14 +28,24 @@ func Http_gateway(ingress, egress net.Conn, c *AITransaction) error {
 					return
 				}
 				slog.Error("reading request", "err", err)
-				return
+				continue
+				//return
 			}
 			//  fmt.Println(req)
 			body, err := io.ReadAll(req.Body)
-
+			if err != nil {
+				slog.Error("data read", "err", err)
+				if err == io.EOF {
+					return
+				}
+				return
+			}
 			chat := openai.ChatCompletionNewParams{}
 
 			err = json.Unmarshal(body, &chat)
+			if err != nil {
+				slog.Error("data parsing (AI)", "err", err)
+			}
 			request := c.GetRequest()
 			if request != nil {
 				if c.Request.Debug {
@@ -54,7 +65,12 @@ func Http_gateway(ingress, egress net.Conn, c *AITransaction) error {
 						slog.Error("generating locking request", "err", err)
 					}
 					r := http.Response{
+						Status:     "200 OK",
 						StatusCode: 200,
+						Proto:      "HTTP/1.1",
+						ProtoMajor: 1,
+						ProtoMinor: 1,
+						Request:    req,
 						Header:     make(http.Header),
 					}
 					r.Header.Add("Content-Type", "application/json")
@@ -66,7 +82,11 @@ func Http_gateway(ingress, egress net.Conn, c *AITransaction) error {
 					if err != nil {
 						slog.Error("writing blocking request", "err", err)
 					}
-
+					if c.Request.Debug {
+						b, _ := httputil.DumpResponse(&r, true)
+						fmt.Println(string(b))
+					}
+					slog.Info("block", "dest", ingress.RemoteAddr().String())
 					continue
 
 				}
@@ -130,13 +150,6 @@ func Http_gateway(ingress, egress net.Conn, c *AITransaction) error {
 			req.ContentLength = int64(len(newBody))
 			req.Body = io.NopCloser(bytes.NewBuffer(newBody))
 
-			if err != nil {
-				slog.Error("data read", "err", err)
-				if err == io.EOF {
-					return
-				}
-				return
-			}
 			err = req.Write(egress)
 			if err != nil {
 				slog.Error("data write", "err", err)
