@@ -11,19 +11,26 @@
 #define BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB 4
 
 struct Config {
+  // Proxy Configuration
   __u32 proxy_addr;
   __u16 proxy_port;
   __u64 proxy_pid;
-  __u32 network;
-  __u16 mask;
+  // CIDR ranges that we should redirect for
+  __u32 pod_cidr;
+  __u32 svc_cidr;
+  __u8 pod_prefix_length;
+  __u8 svc_prefix_length;
+  __u8 cidrs; // If set to 1 then we will compare destination to accepted cidr
+
+  // TBD
   __u8 debug;
   __u8 tunnel;
 };
 
 struct Socket {
   __u32 src_addr;
-  __u16 src_port;
   __u32 dst_addr;
+  __u16 src_port;
   __u16 dst_port;
 };
 

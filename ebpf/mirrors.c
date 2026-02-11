@@ -33,10 +33,12 @@ int cg_connect4(struct bpf_sock_addr *ctx) {
   __u32 destination = bpf_ntohl(dst_addr);
 
   // Manage pod cidr subnet mask (todo: Add services)
-  int mask = (-1) << (32 - conf->mask);
+  int pod_mask = (-1) << (32 - conf->pod_prefix_length);
+  // Manage pod cidr subnet mask (todo: Add services)
+  int svc_mask = (-1) << (32 - conf->svc_cidr);
 
   // If this packet is not part of the podCIDR range then return
-  if ((bpf_htonl(ctx->user_ip4) & mask) != conf->network) {
+  if ((bpf_htonl(ctx->user_ip4) & pod_mask) != conf->pod_cidr) {
     return 1;
   }
 

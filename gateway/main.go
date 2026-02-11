@@ -16,7 +16,7 @@ func main() {
 	}
 	slog.Info("watching for pods", "CIDR", c.PodCIDR)
 
-	slog.Info("Finding existing network sessions")
+	slog.Info("Finding existing network sessions ")
 	n, err := net.Connections("tcp")
 	if err != nil {
 		slog.Error("finding existing connections", "err", err)

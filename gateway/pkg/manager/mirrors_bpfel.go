@@ -14,25 +14,27 @@ import (
 )
 
 type mirrorsConfig struct {
-	_         structs.HostLayout
-	ProxyAddr uint32
-	ProxyPort uint16
-	_         [2]byte
-	ProxyPid  uint64
-	Network   uint32
-	Mask      uint16
-	Debug     uint8
-	Tunnel    uint8
+	_               structs.HostLayout
+	ProxyAddr       uint32
+	ProxyPort       uint16
+	_               [2]byte
+	ProxyPid        uint64
+	PodCidr         uint32
+	SvcCidr         uint32
+	PodPrefixLength uint8
+	SvcPrefixLength uint8
+	Cidrs           uint8
+	Debug           uint8
+	Tunnel          uint8
+	_               [3]byte
 }
 
 type mirrorsSocket struct {
 	_       structs.HostLayout
 	SrcAddr uint32
-	SrcPort uint16
-	_       [2]byte
 	DstAddr uint32
+	SrcPort uint16
 	DstPort uint16
-	_       [2]byte
 }
 
 // loadMirrors returns the embedded CollectionSpec for mirrors.

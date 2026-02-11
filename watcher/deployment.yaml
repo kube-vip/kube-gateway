@@ -88,7 +88,7 @@ spec:
   containers:
     - name: kube-gateway-watcher
       image: thebsdbox/watcher:v1
-      imagePullPolicy: IfNotPresent
+      imagePullPolicy: Always
       command:
         [
           "/kube-gateway-watcher",
