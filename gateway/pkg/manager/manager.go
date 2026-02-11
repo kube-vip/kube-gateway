@@ -52,28 +52,29 @@ func LoadEPF(c *connection.Config) error {
 
 	// Load the compiled eBPF ELF and load it into the kernel
 	// NOTE: we could also pin the eBPF program
-	//var objs mirrorsObjects
 	if err := loadMirrorsObjects(&tracker.objs, nil); err != nil {
 		return fmt.Errorf("loading eBPF objects: %v", err)
 	}
 
+	// Split the cidr between the network and the prefix length
 	cidr := strings.Split(c.PodCIDR, "/")
 	if len(cidr) < 1 {
 		return fmt.Errorf("error parsing cidr %s", c.PodCIDR)
 	}
 
-	var key uint32 = 0
-	i, err := strconv.Atoi(cidr[1])
+	prefixLength, err := strconv.Atoi(cidr[1])
 	if err != nil {
 		// ... handle error
 		return err
 	}
 	config := mirrorsConfig{
-		ProxyPort: uint16(c.ProxyPort),
-		ProxyPid:  uint64(os.Getpid()),
-		ProxyAddr: uint32(connection.ToInt(c.Address)),
-		Network:   uint32(connection.ToInt(cidr[0])),
-		Mask:      uint16(i),
+		ProxyPort:       uint16(c.ProxyPort),
+		ProxyPid:        uint64(os.Getpid()),
+		ProxyAddr:       uint32(connection.ToInt(c.Address)),
+
+		Cidrs:           uint8(1),
+		PodCidr:         uint32(connection.ToInt(cidr[0])),
+		PodPrefixLength: uint8(prefixLength),
 	}
 
 	if c.Tunnel {
@@ -87,6 +88,7 @@ func LoadEPF(c *connection.Config) error {
 		}
 	}
 
+	var key uint32 = 0
 	err = tracker.objs.mirrorsMaps.MapConfig.Update(&key, &config, ebpf.UpdateAny)
 	if err != nil {
 		panic(err)

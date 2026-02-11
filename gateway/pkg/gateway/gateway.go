@@ -1,12 +1,19 @@
 package gateway
 
+type endpointToken struct {
+	endpoint string
+	model    string
+}
+
 type AITransaction struct {
-	Request  *Request  `json:"request,omitempty"`
-	Response *Response `json:"response,omitempty"`
+	TokenCount map[endpointToken]bool
+	Request    *Request  `json:"request,omitempty"`
+	Response   *Response `json:"response,omitempty"`
 }
 
 type Response struct {
-	Debug bool `json:"debug,omitempty"`
+	Debug       bool     `json:"debug,omitempty"`
+	BannedWords []string `json:"bannedWords,omitempty"`
 }
 
 type Request struct {

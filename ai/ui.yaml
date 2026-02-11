@@ -36,4 +36,4 @@ spec:
     - port: 3000
       nodePort: 30009
   selector:
-    app: ui
+    app: ai-ui

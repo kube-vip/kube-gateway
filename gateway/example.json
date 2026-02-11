@@ -20,5 +20,7 @@
             }
         ]
     },
-    "response": {}
+    "response": {
+        "bannedWords": ["elephants", "Elephants"]
+    }
 }
