@@ -32,9 +32,8 @@ Well, they're pretty cool and they are a good way to attach things to an already
 
 The following commands will generate the certificate authority
 
-```openssl genrsa -out ca.key 4096
-openssl req -new -x509 -days 3650 -key ca.key -out ca.crt
-kubectl create secret generic watcher --from-file=ca-key=ca.key --from-file=ca-cert=ca.crt
+```
+make certs
 ```
 
 or you can use the `watcher` to create the `secret` that has the CA certs:
@@ -84,7 +83,7 @@ At which point all traffic will be encrypted end-to-end 🤩
 Apply the gateway to the pod with the following:
 `kubectl annotate pod pod-01 kube-gateway.io/ai="true"`
 
-### Deploy an example
+### Deploy an example AI workload
 
 We're going to deploy ollama with the `llama3.2` model.
 
@@ -92,10 +91,16 @@ We're going to deploy ollama with the `llama3.2` model.
 kubectl apply -f ./AI/everything.yaml
 ```
 
+We're also going to pull an additional model into ollama, so that kube-gateway can override the AI API calls.
+
+```
+curl -X POST http://NODE_IP:30007/api/pull -H 'Content-Type: application/json' -d '{"name": "gemma2:2b"}'
+```
+
 Then we're going to deploy our own AI client:
 
 ```
-kubectl apply -f ./AI/aiClient/pod.yaml
+kubectl apply -f ./AI/aipod.yaml
 ```
 
 We can deploy a second too (optional), this one uses python but is another good example of manipulating multiple workloads:
@@ -104,16 +109,35 @@ We can deploy a second too (optional), this one uses python but is another good 
 kubectl apply -f ./AI/aiClient-py/pod.yaml
 ```
 
-### Override example (model type)
-Make sure that the model has been pulled into ollama first :-) 
+### Enable our AI gateway
 
-```
-curl -X POST http://172.18.0.4:30007/api/pull -H 'Content-Type: application/json' -d '{"name": "gemma2:2b"}'
-```
+If our AI workload uses long lived connections, then we will need to force it to restablish it's TCP session so that the gateway can **transparently** intercept it. In order to do that we annotate our pod with the `netflush` annotation:
 
-`kubectl annotate pod aipod kube-gateway.io/ai-model="gemma2:2b"`
+`kubectl annotate pod aipod kube-gateway.io/netflush="true"`
 
-kubectl create configmap <pod>-kube-gateway --from-file=config=./path.json
+Finally enable `kube-gateway` on our workload with the `ai` annotation:
+
+`kubectl annotate pod aipod kube-gateway.io/ai="true"`
+
+If we look at the annotations on the pod now we should see two that we added along with a third:
+
+`kube-gateway.io/enabled="true"`
+
+At this point our gateway will be handling all traffic for this application!
+
+In order to do things with this traffic, we will need to apply a policy.
+
+### Let apply our policy
+
+Which we do by applying our json policy to a configmap that matches the name of the pod we want to control traffic for with the suffix `-kube-gateway`.
+
+kubectl create configmap <pod>-kube-gateway --from-file=config=./ai/policy.json
+
+#### Modifying our policy
+
+`k edit configmap aipod-kube-gateway`
+
+In this example policy we can now swap out the model, from llama to gemma. Or change the prompt behaviour to even debugging the raw requests/responses of the AI api calls.
 
 ## Debugging
 

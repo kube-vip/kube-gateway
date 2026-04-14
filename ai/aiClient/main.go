@@ -14,27 +14,33 @@ import (
 	oaioption "github.com/openai/openai-go/option"
 )
 
+type config struct {
+	model string
+	url   string
+}
+
 var client openai.Client
 
 //go:embed public
 var embeddedFiles embed.FS
 
 func main() {
-
-	model, found := os.LookupEnv("model")
+	c := config{}
+	found := false
+	c.model, found = os.LookupEnv("model")
 	if !found {
-		model = "llama3.2"
+		c.model = "llama3.2"
 	}
-	url, found := os.LookupEnv("url")
+	c.url, found = os.LookupEnv("url")
 	if !found {
-		url = "http://ollama1.ollama:11434/v1"
+		c.url = "http://ollama1.ollama:11434/v1"
 	}
 
-	log.Println("Settings", "model", model, "endpoint", url)
+	log.Println("Settings", "model", c.model, "endpoint", c.url)
 	//c := http.Client{}
 	ctx := context.Background()
 	client = openai.NewClient(
-		oaioption.WithBaseURL(url), //ollama is svc // ollama1 is pod
+		oaioption.WithBaseURL(c.url), //ollama is svc // ollama1 is pod
 		oaioption.WithAPIKey("ollama"),
 	//	oaioption.WithHTTPClient(&c),
 	)
@@ -58,13 +64,13 @@ func main() {
 
 	// Create an HTTP file server from the embedded file system
 	http.Handle("/", http.FileServer(http.FS(publicFS)))
-	http.HandleFunc("/form", FormHandler)
+	http.HandleFunc("/form", c.FormHandler)
 
 	go func() {
 		for {
 			time.Sleep(time.Second * 15)
 			resp, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-				Model: model,
+				Model: c.model,
 				Messages: []openai.ChatCompletionMessageParamUnion{
 					openai.UserMessage("Tell me a joke about Go."),
 				},
@@ -90,7 +96,7 @@ func main() {
 
 }
 
-func FormHandler(w http.ResponseWriter, r *http.Request) {
+func (c *config) FormHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		fmt.Fprintf(w, "ParseForm() err: %v", err)
 		return
@@ -99,7 +105,7 @@ func FormHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Web query %s\n", message)
 	fmt.Fprintf(w, "Your query: %s\n", message)
 	resp, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
-		Model: "llama3.2",
+		Model: c.model,
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(message),
 		},

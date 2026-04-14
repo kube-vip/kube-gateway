@@ -17,6 +17,12 @@ help:
 
 .DEFAULT_GOAL := all
 
+certs:
+	@openssl req -x509 -newkey rsa:4096 -keyout ca.key -out ca.crt -sha256 -days 3650 -nodes -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=CommonNameOrHostname"
+	@-kubectl create namespace kube-gateway
+	@kubectl create secret generic watcher --from-file=ca-key=ca.key --from-file=ca-cert=ca.crt -n kube-gateway
+	@rm ca.key ca.crt
+
 kind_create:
 	@kind create cluster --config ./kind.yaml
 

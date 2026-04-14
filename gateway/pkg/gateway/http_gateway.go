@@ -31,23 +31,8 @@ func Http_gateway(ingress, egress net.Conn, c *AITransaction) error {
 
 			request := c.GetRequest()
 			if request != nil {
-				// If we have a config then we parse, ReadAll will leave 0 bytes in the body, giving us an error when we write the onward request
-				body, err := io.ReadAll(req.Body)
-				if err != nil {
-					slog.Error("data read", "err", err)
-					if err == io.EOF {
-						return
-					}
-					return
-				}
-				// chat := openai.ChatCompletionNewParams{}
 
-				// err = json.Unmarshal(body, &chat)
-				// if err != nil {
-				// 	slog.Error("data parsing (AI)", "err", err)
-				// }
-
-				block, resp, err := c.openAIRequest(body, req)
+				block, resp, err := c.openAIRequest(req)
 				if err != nil {
 					slog.Error("parse openAI request", "err", err)
 					continue
@@ -61,7 +46,7 @@ func Http_gateway(ingress, egress net.Conn, c *AITransaction) error {
 						b, _ := httputil.DumpResponse(resp, true)
 						fmt.Println(string(b))
 					}
-					slog.Info("block", "dest", ingress.RemoteAddr().String())
+					slog.Info("block request", "dest", ingress.RemoteAddr().String())
 					continue
 				}
 			}
@@ -94,7 +79,7 @@ func Http_gateway(ingress, egress net.Conn, c *AITransaction) error {
 			}
 			block, err := c.openAIResponse(body, res)
 			if block {
-				slog.Info("block", "dest", ingress.RemoteAddr().String())
+				slog.Info("block response", "dest", ingress.RemoteAddr().String())
 			}
 		}
 		if err != nil {

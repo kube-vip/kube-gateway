@@ -14,17 +14,28 @@ import (
 	"github.com/openai/openai-go/packages/param"
 )
 
-func (c *AITransaction) openAIRequest(body []byte, req *http.Request) (block bool, res *http.Response, err error) {
-	chat := openai.ChatCompletionNewParams{}
-
-	err = json.Unmarshal(body, &chat)
-	if err != nil {
-		return false, nil, err
-	}
+func (c *AITransaction) openAIRequest(req *http.Request) (block bool, res *http.Response, err error) {
 	if c.Request.Debug {
 		b, _ := httputil.DumpRequest(req, true)
 		fmt.Println(string(b))
 	}
+
+	// If we have a config then we parse, ReadAll will leave 0 bytes in the body, giving us an error when we write the onward request
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		slog.Error("data read", "err", err)
+		if err == io.EOF {
+			return
+		}
+		return
+	}
+
+	chat := openai.ChatCompletionNewParams{}
+	err = json.Unmarshal(body, &chat)
+	if err != nil {
+		return false, nil, err
+	}
+
 	if c.Request.Block {
 		// If it is blocked then we generate a pseudo response to the original requester
 		resp := openai.ChatCompletion{
@@ -135,5 +146,5 @@ func (c *AITransaction) openAIResponse(body []byte, res *http.Response) (block b
 	newBody, _ := json.Marshal(chat)
 	res.ContentLength = int64(len(newBody))
 	res.Body = io.NopCloser(bytes.NewBuffer(newBody))
-	return true, nil
+	return block, nil
 }
