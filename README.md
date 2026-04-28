@@ -6,6 +6,10 @@ A transparent gateway for Kubernetes pods
 
 **Note** this is more of a proof of concept at this stage, so feel free to take for a test drive and give feedback. Additionally it uses ephemeral containers to attach the proxy to your workloads and due to a bug in previous releases of Kubernetes only works from version v1.33 onwards. 
 
+
+https://github.com/user-attachments/assets/4d85093e-dbc1-4d71-b75d-aef12744c963
+
+
 ## Architecture
 
 A workload watcher/informer watches for all pods (especially their `update`) call, as when a pod is `created` it won't have an IP address. The `update` occurs once an IP address has been applied, we can the use this IP address to mint a certificate for the pod and create a secret for the pod. Finally an ephemeral container is created and added to the pod, making use of that secret to allow for encrypted communication.
