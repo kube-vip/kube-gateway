@@ -19,10 +19,10 @@ A workload watcher/informer watches for all pods (especially their `update`) cal
 Well, they're pretty cool and they are a good way to attach things to an already running pod! With kube-gateway we create a ephemeral container that also loads a secret (which was broken prior to v1.33) that has the created certificates, eBPF redirects traffic to the gateway and that then encrypts it and sends it on it's merry way.
 
 ### Code
+- `ai` contains deployments for AI workloads and ollama
 - `demo` contains a simple demonstration of two pods speaking to one another over TCP (no encryption)
 - `ebpf` contains the eBPF code for redirecting connections to the proxy
 - `gateway` contains the code for the userland portion speaking with the eBPF and TLS connections
-- `pkg` contains shared code
 - `watcher` contains the pod watcher code
 
 
@@ -131,11 +131,50 @@ At this point our gateway will be handling all traffic for this application!
 
 In order to do things with this traffic, we will need to apply a policy.
 
+### Understanding policies
+
+**note** policies are a work in progress and more features will be added as the project matures.
+
+The `request` section is to control the requests from the AI agent/workload, and we can see here sections for changing models and swapping out keywords or dumping the rew request with `debug`.
+
+The `response` section allows us to control what is coming from the LLM, allowing us to block responses based upon keywords etc..
+
+```
+{
+    "request": {
+        "maxTokens": "50",
+        "debug": false,
+        "modelReplace": [
+            {
+                "orig": "llama3.2:1b",
+                "new": "gemma2:2b"
+            }
+        ],
+        "userPromptReplace": [
+            {
+                "orig": "Go.",
+                "new": "horse",
+                "caseSensitive": true
+            },
+            {
+                "orig": "joke",
+                "new": "fact",
+                "caseSensitive": false
+            }
+        ]
+    },
+    "response": {
+        "debug": false,
+        "bannedWords": ["rabbit", "Rabbit"]
+    }
+}
+```
+
 ### Let apply our policy
 
 Which we do by applying our json policy to a configmap that matches the name of the pod we want to control traffic for with the suffix `-kube-gateway`.
 
-kubectl create configmap <pod>-kube-gateway --from-file=config=./ai/policy.json
+`kubectl create configmap <pod>-kube-gateway --from-file=config=./ai/policy.json`
 
 #### Modifying our policy
 
